@@ -1,0 +1,43 @@
+# Task ID: 2
+# Title: CLI Interface and Argument Parsing
+# Status: done
+# Dependencies: 1
+# Priority: high
+# Description: Implement command-line interface with all required options and help system
+# Details:
+Use Click to create CLI with options: --rerun-failed/-f, --json-report/-j, --md-report/-m, --no-color, --verbose/-v, --version, --help. Implement main() function that parses args and delegates to appropriate handlers. Add version detection for Ansible/Molecule and display in --version. Handle keyboard interrupts gracefully. Validate file paths for report outputs.
+
+# Test Strategy:
+Test all CLI options work correctly, help text is clear, version info displays properly, and invalid arguments show appropriate error messages.
+
+# Subtasks:
+## 1. Set up Click CLI framework with basic options [done]
+### Dependencies: None
+### Description: Initialize the Click framework and define the basic CLI structure with all required options and their aliases
+### Details:
+Create a new module for the CLI. Use Click decorators to define the main command and all required options (--rerun-failed/-f, --json-report/-j, --md-report/-m, --no-color, --verbose/-v, --version, --help). Define appropriate types and help text for each option. Set up the basic command function structure that will later call handlers.
+
+## 2. Implement version detection and display [done]
+### Dependencies: 2.1
+### Description: Add functionality to detect Ansible and Molecule versions and display them with the --version option
+### Details:
+Create utility functions to detect installed versions of Ansible and Molecule. Handle cases where they might not be installed. Modify the Click context to display custom version information when --version is used, showing both the tool version and detected dependency versions.
+
+## 3. Implement main() function with argument parsing [done]
+### Dependencies: 2.1
+### Description: Create the main entry point function that parses arguments and delegates to appropriate handlers
+### Details:
+Implement the main() function that will serve as the entry point. Extract and validate all arguments from the Click context. Set up conditional logic to determine which handlers to call based on provided options. Implement proper exit codes for different scenarios.
+
+## 4. Add file path validation for reports [done]
+### Dependencies: 2.3
+### Description: Implement validation for report output file paths specified with --json-report and --md-report options
+### Details:
+Create validation functions to check if specified paths for JSON and Markdown reports are valid and writable. Handle cases where directories don't exist or files can't be written. Provide meaningful error messages when validation fails. Integrate these validations into the argument parsing flow.
+
+## 5. Implement graceful keyboard interrupt handling [done]
+### Dependencies: 2.3
+### Description: Add proper handling of keyboard interrupts (Ctrl+C) to ensure clean program termination
+### Details:
+Wrap the main execution flow in try/except blocks to catch KeyboardInterrupt exceptions. Implement a clean shutdown procedure that displays an appropriate message when interrupted. Ensure any open resources are properly closed and temporary files are cleaned up. Return appropriate exit code for interruption.
+

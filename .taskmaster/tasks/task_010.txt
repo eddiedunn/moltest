@@ -1,0 +1,43 @@
+# Task ID: 10
+# Title: Incremental Test Execution
+# Status: done
+# Dependencies: 5, 9
+# Priority: medium
+# Description: Implement --rerun-failed functionality using cached results
+# Details:
+Integrate cache system with main execution flow. When --rerun-failed is specified, filter discovered scenarios to only those marked as failed in cache. Handle edge cases: no cache file (run all with warning), no failed scenarios (exit with message), new scenarios not in cache (include in run). Update cache after each run with latest results. Provide clear feedback about which scenarios are being run and why.
+
+# Test Strategy:
+Test --rerun-failed with various cache states, verify correct scenario filtering, confirm cache updates, and validate user feedback messages.
+
+# Subtasks:
+## 1. Implement cache reading for failed scenarios [done]
+### Dependencies: None
+### Description: Create functionality to read the cache file and extract the list of failed scenarios from the previous test run.
+### Details:
+Create a function that reads the cache file (handling the case where it doesn't exist), parses its content, and returns a list of scenario identifiers that were marked as failed in the previous run. Include proper error handling for corrupted cache files. The function should return an empty list if no cache exists, along with a flag indicating this situation.
+
+## 2. Add command line argument parsing for --rerun-failed [done]
+### Dependencies: None
+### Description: Extend the command line argument parser to recognize and process the --rerun-failed flag.
+### Details:
+Update the argument parser to accept the --rerun-failed flag. When this flag is present, set a boolean property in the configuration object that will be used to determine if only failed tests should be run. Ensure the help documentation is updated to explain this new option.
+
+## 3. Implement test filtering based on failed scenarios [done]
+### Dependencies: 10.1, 10.2
+### Description: Create a filtering mechanism that limits test execution to only the scenarios that previously failed.
+### Details:
+Develop a filter function that takes the complete list of discovered scenarios and the list of failed scenarios from the cache. When --rerun-failed is active, return only the scenarios that match the failed list. Handle the special case where a scenario exists in the current test suite but wasn't in the cache (consider these as new and include them in the run). Provide appropriate logging about which scenarios are being included/excluded and why.
+
+## 4. Implement cache updating after test execution [done]
+### Dependencies: 10.1
+### Description: Update the cache with the latest test results after each test run.
+### Details:
+Create a function that takes the test execution results and updates the cache file. The function should preserve information about tests that weren't run in the current execution (if --rerun-failed was used) while updating the status of tests that were run. Ensure atomic writing to prevent cache corruption if the process is interrupted.
+
+## 5. Integrate rerun-failed workflow with main execution flow [done]
+### Dependencies: 10.3, 10.4
+### Description: Connect all components to implement the complete --rerun-failed functionality in the main test execution flow.
+### Details:
+Modify the main test execution flow to use the filtering mechanism when --rerun-failed is specified. Handle edge cases: display a warning when --rerun-failed is specified but no cache exists (run all tests), exit with an informative message when there are no failed tests to rerun. After test execution, update the cache with new results. Implement clear console feedback throughout the process to inform users about which scenarios are being run and why.
+

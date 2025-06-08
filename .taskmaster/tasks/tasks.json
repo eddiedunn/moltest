@@ -1,0 +1,570 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Project Setup and Dependencies",
+      "description": "Initialize Python project structure with proper dependencies for Ansible Core 2.15 and Molecule compatibility",
+      "details": "Create Python package structure with setup.py/pyproject.toml. Define dependencies: ansible-core>=2.15, molecule>=4.0, click for CLI parsing, colorama for cross-platform color support. Set up console entry point 'moltest = moltest.cli:main'. Create basic directory structure: moltest/__init__.py, moltest/cli.py, moltest/discovery.py, moltest/executor.py, moltest/reporter.py, moltest/cache.py. Include requirements.txt and setup configuration.",
+      "testStrategy": "Verify package installs correctly via pip, entry point works, and all dependencies resolve without conflicts. Test import of all modules.",
+      "priority": "high",
+      "dependencies": [],
+      "status": "done",
+      "subtasks": []
+    },
+    {
+      "id": 2,
+      "title": "CLI Interface and Argument Parsing",
+      "description": "Implement command-line interface with all required options and help system",
+      "details": "Use Click to create CLI with options: --rerun-failed/-f, --json-report/-j, --md-report/-m, --no-color, --verbose/-v, --version, --help. Implement main() function that parses args and delegates to appropriate handlers. Add version detection for Ansible/Molecule and display in --version. Handle keyboard interrupts gracefully. Validate file paths for report outputs.",
+      "testStrategy": "Test all CLI options work correctly, help text is clear, version info displays properly, and invalid arguments show appropriate error messages.",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "status": "done",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Set up Click CLI framework with basic options",
+          "description": "Initialize the Click framework and define the basic CLI structure with all required options and their aliases",
+          "dependencies": [],
+          "details": "Create a new module for the CLI. Use Click decorators to define the main command and all required options (--rerun-failed/-f, --json-report/-j, --md-report/-m, --no-color, --verbose/-v, --version, --help). Define appropriate types and help text for each option. Set up the basic command function structure that will later call handlers.",
+          "status": "done",
+          "testStrategy": "Write unit tests to verify all options are correctly defined with proper aliases and help text. Test with --help to ensure documentation is generated correctly."
+        },
+        {
+          "id": 2,
+          "title": "Implement version detection and display",
+          "description": "Add functionality to detect Ansible and Molecule versions and display them with the --version option",
+          "dependencies": [
+            1
+          ],
+          "details": "Create utility functions to detect installed versions of Ansible and Molecule. Handle cases where they might not be installed. Modify the Click context to display custom version information when --version is used, showing both the tool version and detected dependency versions.",
+          "status": "done",
+          "testStrategy": "Mock version detection functions to test different scenarios (installed, not installed, different versions). Verify correct output format for the version information."
+        },
+        {
+          "id": 3,
+          "title": "Implement main() function with argument parsing",
+          "description": "Create the main entry point function that parses arguments and delegates to appropriate handlers",
+          "dependencies": [
+            1
+          ],
+          "details": "Implement the main() function that will serve as the entry point. Extract and validate all arguments from the Click context. Set up conditional logic to determine which handlers to call based on provided options. Implement proper exit codes for different scenarios.",
+          "status": "done",
+          "testStrategy": "Test main() with various combinations of arguments to ensure correct handler functions are called with appropriate parameters. Test exit codes for different scenarios."
+        },
+        {
+          "id": 4,
+          "title": "Add file path validation for reports",
+          "description": "Implement validation for report output file paths specified with --json-report and --md-report options",
+          "dependencies": [
+            3
+          ],
+          "details": "Create validation functions to check if specified paths for JSON and Markdown reports are valid and writable. Handle cases where directories don't exist or files can't be written. Provide meaningful error messages when validation fails. Integrate these validations into the argument parsing flow.",
+          "status": "done",
+          "testStrategy": "Test with various path scenarios: valid paths, non-existent directories, read-only locations, etc. Verify appropriate error messages are displayed for invalid paths."
+        },
+        {
+          "id": 5,
+          "title": "Implement graceful keyboard interrupt handling",
+          "description": "Add proper handling of keyboard interrupts (Ctrl+C) to ensure clean program termination",
+          "dependencies": [
+            3
+          ],
+          "details": "Wrap the main execution flow in try/except blocks to catch KeyboardInterrupt exceptions. Implement a clean shutdown procedure that displays an appropriate message when interrupted. Ensure any open resources are properly closed and temporary files are cleaned up. Return appropriate exit code for interruption.",
+          "status": "done",
+          "testStrategy": "Mock KeyboardInterrupt scenarios to verify the application handles them gracefully. Check that resources are properly cleaned up and appropriate exit messages are displayed."
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Molecule Scenario Discovery Engine",
+      "description": "Implement automatic discovery of all Molecule scenarios across the project",
+      "details": "Create discovery.py module using pathlib to find all molecule.yml files under molecule/ directories. Parse scenario structure to extract: scenario name (parent dir of molecule.yml), role name (if applicable), base execution path. Handle both single-role and multi-role repositories. Generate unique scenario identifiers like 'role:scenario' or 'scenario' for top-level. Return list of scenario objects with name, path, and execution context. Sort scenarios for consistent ordering.",
+      "testStrategy": "Test discovery on various project structures: single role with multiple scenarios, multi-role repos, playbook-only repos. Verify correct scenario identification and path resolution.",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "status": "done",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Create discovery.py module with file finding functionality",
+          "description": "Implement the basic structure of discovery.py with functions to recursively find all molecule.yml files in the project directory structure",
+          "dependencies": [],
+          "details": "Create a new discovery.py module with a function that uses pathlib.Path to recursively search for all molecule.yml files. The function should take a base directory as input and return a list of paths to all molecule.yml files found. Handle edge cases like symlinks and permission errors. Include docstrings and type hints for better code quality.",
+          "status": "done",
+          "testStrategy": "Write unit tests with sample directory structures to verify all molecule.yml files are found correctly"
+        },
+        {
+          "id": 2,
+          "title": "Implement scenario structure parsing",
+          "description": "Create functions to parse the directory structure around each molecule.yml file to extract scenario name, role name, and base execution path",
+          "dependencies": [
+            1
+          ],
+          "details": "For each molecule.yml path, determine: 1) scenario name (parent directory name), 2) role name if applicable (check if molecule.yml is under a 'roles/X/molecule' path), 3) base execution path (directory from which molecule commands should run). Create a ScenarioInfo class or dataclass to store this information. Handle both single-role and multi-role repository structures.",
+          "status": "done",
+          "testStrategy": "Test with different directory structures including top-level scenarios and role-based scenarios"
+        },
+        {
+          "id": 3,
+          "title": "Generate unique scenario identifiers",
+          "description": "Create logic to generate consistent, unique identifiers for each scenario based on its location",
+          "dependencies": [
+            2
+          ],
+          "details": "Implement a function that generates unique scenario identifiers following the pattern 'role:scenario' for role-based scenarios or just 'scenario' for top-level scenarios. Ensure identifiers are unique across the project. Add this identifier to the ScenarioInfo objects created in the previous subtask.",
+          "status": "done",
+          "testStrategy": "Test with scenarios that might generate conflicting IDs to ensure uniqueness"
+        },
+        {
+          "id": 4,
+          "title": "Implement scenario sorting and result formatting",
+          "description": "Create functionality to sort scenarios in a consistent order and format the final result list",
+          "dependencies": [
+            3
+          ],
+          "details": "Implement sorting logic to ensure scenarios are returned in a consistent order (e.g., alphabetically by identifier). Create a function that takes the list of ScenarioInfo objects and returns them in the required format with name, path, and execution context. Ensure the output format is consistent and well-documented.",
+          "status": "done",
+          "testStrategy": "Test sorting with various scenario combinations and verify output format matches requirements"
+        },
+        {
+          "id": 5,
+          "title": "Create main discovery function and integration tests",
+          "description": "Implement the main discovery function that orchestrates the entire process and write integration tests",
+          "dependencies": [
+            4
+          ],
+          "details": "Create a main discover_scenarios() function that orchestrates the entire process: finding molecule.yml files, parsing scenario structure, generating identifiers, sorting, and returning the final list. Add proper error handling, logging, and documentation. Ensure the function has appropriate parameters (like base directory) with sensible defaults.",
+          "status": "done",
+          "testStrategy": "Create integration tests with complex directory structures mimicking real-world Ansible projects to verify the entire discovery process works correctly"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Molecule Test Executor",
+      "description": "Implement core execution engine to run Molecule tests for discovered scenarios",
+      "details": "Create executor.py module using subprocess.run to execute 'molecule test -s <scenario>' commands. Change working directory to appropriate base path before execution. Stream Molecule output to console in real-time while capturing return codes. Handle timeouts and interruptions gracefully. Record execution time and status (pass/fail) for each scenario. Continue execution even if scenarios fail to gather complete results.",
+      "testStrategy": "Test execution with passing and failing scenarios, verify output streaming works, confirm proper working directory handling, and validate return code capture.",
+      "priority": "high",
+      "dependencies": [
+        2,
+        3
+      ],
+      "status": "done",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Create basic executor.py module structure",
+          "description": "Set up the initial structure for the executor.py module with necessary imports and class/function definitions",
+          "dependencies": [],
+          "details": "Create a new file executor.py with imports for subprocess, time, signal, and other required modules. Define a MoleculeExecutor class with methods for initialization, execution, and result handling. Include placeholder methods for running tests, handling output, and managing timeouts.",
+          "status": "done",
+          "testStrategy": "Create unit tests to verify the class structure and method signatures are correctly implemented"
+        },
+        {
+          "id": 2,
+          "title": "Implement subprocess execution with real-time output streaming",
+          "description": "Develop the core functionality to execute Molecule test commands and stream output to console in real-time",
+          "dependencies": [],
+          "details": "Implement the run_test method using subprocess.Popen with appropriate pipes for stdout and stderr. Set up a loop to read output lines in real-time and print them to console. Ensure the working directory is changed to the appropriate base path before execution using os.chdir(). Capture the return code to determine test success/failure.",
+          "status": "done",
+          "testStrategy": "Test with mock subprocess calls to verify command construction and output handling"
+        },
+        {
+          "id": 3,
+          "title": "Add timeout and interruption handling",
+          "description": "Implement mechanisms to handle test timeouts and user interruptions gracefully",
+          "dependencies": [],
+          "details": "Add timeout parameter to the run_test method. Implement signal handlers for SIGINT and SIGTERM. Use threading or signal.alarm for timeout implementation. When timeout or interruption occurs, terminate the subprocess properly, log the event, and return appropriate status. Ensure resources are cleaned up properly in all cases.",
+          "status": "done",
+          "testStrategy": "Test timeout functionality with a deliberately long-running test and verify interruption handling by simulating signals"
+        },
+        {
+          "id": 4,
+          "title": "Implement execution metrics collection",
+          "description": "Add functionality to record execution time and status for each scenario",
+          "dependencies": [],
+          "details": "Enhance the run_test method to record start and end times using time.time(). Calculate and store execution duration. Create a TestResult class or data structure to hold scenario name, status (pass/fail), return code, execution time, and any error messages. Return this result object from the run_test method.",
+          "status": "done",
+          "testStrategy": "Verify metrics collection by running tests with known durations and validating the recorded times and statuses"
+        },
+        {
+          "id": 5,
+          "title": "Implement multi-scenario execution with failure handling",
+          "description": "Create functionality to run multiple scenarios sequentially and continue execution even when scenarios fail",
+          "dependencies": [],
+          "details": "Implement a run_scenarios method that takes a list of scenario paths and executes each one using the run_test method. Collect results from each execution regardless of pass/fail status. Continue execution even when scenarios fail. Return a comprehensive results collection with data from all executed scenarios. Add logging to record overall execution statistics.",
+          "status": "done",
+          "testStrategy": "Test with multiple scenarios including some that are expected to fail, and verify all scenarios are executed and results are correctly collected"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Results Cache and Persistence System",
+      "description": "Implement persistent storage of test results to support incremental reruns",
+      "details": "Create cache.py module to handle .moltest_cache.json file in project root. Store scenario results as JSON with format: {'moltest_version': '1.0.0', 'last_run': 'timestamp', 'scenarios': {'role:scenario': 'passed/failed'}}. Implement atomic file writes using temp file + rename. Add cache validation and corruption handling. Support --rerun-failed by filtering discovered scenarios against cached failures. Include cache clearing functionality.",
+      "testStrategy": "Test cache file creation, reading, and updating. Verify atomic writes prevent corruption. Test --rerun-failed with various cache states including missing/corrupted files.",
+      "priority": "medium",
+      "dependencies": [
+        3
+      ],
+      "status": "done",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Create Cache Data Structure and File Format",
+          "description": "Define the cache data structure and file format for storing test results",
+          "dependencies": [],
+          "details": "Create a new cache.py module that defines the structure of the cache data. Implement functions to initialize an empty cache with the format {'moltest_version': '1.0.0', 'last_run': 'timestamp', 'scenarios': {'role:scenario': 'passed/failed'}}. Define helper functions for serializing and deserializing the cache to/from JSON. Include validation for the cache structure to ensure it matches the expected format.",
+          "status": "done",
+          "testStrategy": "Write unit tests for cache initialization, serialization, and deserialization functions. Test with valid and invalid cache data structures."
+        },
+        {
+          "id": 2,
+          "title": "Implement Atomic File Operations",
+          "description": "Create functions for safely reading and writing the cache file",
+          "dependencies": [],
+          "details": "Implement functions to read the cache file from disk and write to it atomically. Use a temporary file and rename approach to ensure atomic writes. Handle file not found errors when reading by initializing a new cache. Include error handling for permission issues, disk full scenarios, and other IO exceptions. The cache file should be named '.moltest_cache.json' and stored in the project root.",
+          "status": "done",
+          "testStrategy": "Test file operations with mocked file system. Verify atomic write operations work correctly and that error handling functions as expected."
+        },
+        {
+          "id": 3,
+          "title": "Implement Cache Update and Query Functions",
+          "description": "Create functions to update the cache with test results and query the cache",
+          "dependencies": [],
+          "details": "Implement functions to update the cache with test results (passed/failed) for specific scenarios. Create query functions to check if a scenario exists in the cache and retrieve its status. Add functionality to get all failed scenarios, all passed scenarios, or all cached scenarios. Include a timestamp update when the cache is modified. Implement cache validation to detect corruption and handle version mismatches.",
+          "status": "done",
+          "testStrategy": "Write unit tests for updating and querying the cache. Test with various combinations of passed and failed scenarios."
+        },
+        {
+          "id": 4,
+          "title": "Integrate Cache with Test Runner",
+          "description": "Modify the test runner to store results in the cache and support rerunning failed tests",
+          "dependencies": [],
+          "details": "Update the test runner to record test results in the cache after each scenario execution. Implement the '--rerun-failed' command line option that filters discovered scenarios against cached failures. Ensure the cache is properly updated after reruns. Add logic to detect when a test that previously failed now passes and update the cache accordingly.",
+          "status": "done",
+          "testStrategy": "Create integration tests that run a set of tests (some passing, some failing), then rerun with '--rerun-failed' and verify only failed tests are executed."
+        },
+        {
+          "id": 5,
+          "title": "Add Cache Management Commands",
+          "description": "Implement commands to view, clear, and manage the cache",
+          "dependencies": [],
+          "details": "Add a '--clear-cache' command line option to delete the cache file or reset it to an empty state. Implement a '--cache-info' option to display statistics about the cache (number of passed/failed tests, last run timestamp, etc.). Add functionality to selectively clear parts of the cache (e.g., only failed tests or tests matching a pattern). Ensure all cache management commands have appropriate user feedback.",
+          "status": "done",
+          "testStrategy": "Test each command line option to verify it correctly modifies or displays the cache. Test with both existing and non-existing cache files."
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Console Output and Color-Coded Summary",
+      "description": "Implement rich console output with color-coded test results and summary",
+      "details": "Create reporter.py module for console output formatting. Use colorama for cross-platform ANSI color support. Display real-time scenario status as tests complete (✓ PASSED / ✗ FAILED). Generate final summary table with scenario names, status, and totals. Support --no-color flag and auto-detect TTY. Include execution time in summary if available. Format output similar to pytest with clear pass/fail indicators.",
+      "testStrategy": "Test color output on different terminals, verify --no-color works, confirm summary formatting is readable, and validate color auto-detection.",
+      "priority": "medium",
+      "dependencies": [
+        4
+      ],
+      "status": "done",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Create reporter.py module with colorama integration",
+          "description": "Set up the reporter.py module with basic structure and integrate colorama for cross-platform color support",
+          "dependencies": [],
+          "details": "Create a new reporter.py file with a Reporter class. Import and initialize colorama for cross-platform ANSI color support. Implement color constants for success (green), failure (red), warning (yellow), and info (blue). Add a command-line argument parser option for --no-color flag. Implement color detection logic that respects both the --no-color flag and auto-detects if output is going to a TTY.",
+          "status": "done",
+          "testStrategy": "Test that colorama initializes correctly. Verify the --no-color flag disables color output. Test TTY detection by mocking sys.stdout.isatty()."
+        },
+        {
+          "id": 2,
+          "title": "Implement real-time scenario status reporting",
+          "description": "Create functions to display real-time test results as scenarios complete",
+          "dependencies": [],
+          "details": "Add methods to Reporter class for displaying individual test results in real-time: report_pass(scenario_name) and report_fail(scenario_name, error_message). Use appropriate color coding (green checkmark for pass, red X for fail). Format output similar to pytest with clear indicators. Ensure proper indentation and consistent formatting. Include scenario name in the output.",
+          "status": "done",
+          "testStrategy": "Test that pass/fail reporting uses correct colors and symbols. Verify output formatting matches requirements. Test with various scenario names including edge cases."
+        },
+        {
+          "id": 3,
+          "title": "Implement execution time tracking",
+          "description": "Add functionality to track and report execution time for scenarios and overall test run",
+          "dependencies": [],
+          "details": "Extend the Reporter class to track start and end times for the entire test run and individual scenarios. Create helper methods to calculate and format execution times (e.g., in milliseconds for quick tests, seconds for longer ones). Store timing data in a structure that can be accessed when generating the final summary.",
+          "status": "done",
+          "testStrategy": "Test time tracking with mocked time functions. Verify formatting of different time ranges (ms vs seconds). Ensure timing data is correctly associated with the right scenarios."
+        },
+        {
+          "id": 4,
+          "title": "Create summary table generator",
+          "description": "Implement functionality to generate a formatted summary table of all test results",
+          "dependencies": [],
+          "details": "Add a generate_summary_table method to the Reporter class that creates a well-formatted table showing all scenario results. Include columns for scenario name, status (PASSED/FAILED), and execution time. Calculate and display totals (total tests, passed, failed, total execution time). Use appropriate color coding for the summary information. Ensure table has consistent alignment and borders.",
+          "status": "done",
+          "testStrategy": "Test summary generation with various combinations of passed/failed tests. Verify totals are calculated correctly. Check formatting and alignment with different scenario name lengths."
+        },
+        {
+          "id": 5,
+          "title": "Integrate reporter with test runner",
+          "description": "Connect the reporter module with the main test runner to provide real-time output during test execution",
+          "dependencies": [],
+          "details": "Modify the main test runner to instantiate and use the Reporter class. Add hooks to report test results as they complete. Pass command line arguments for color settings to the Reporter. Ensure the summary table is displayed after all tests complete. Handle edge cases such as no tests run, all tests passed, or all tests failed with appropriate messaging.",
+          "status": "done",
+          "testStrategy": "Integration test with the full test runner. Verify real-time output appears correctly during test execution. Test with various combinations of passing and failing tests. Verify --no-color flag works end-to-end."
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "JSON Report Generation",
+      "description": "Implement structured JSON report output for CI integration",
+      "details": "Extend reporter.py to generate JSON reports with structure: {'total_scenarios': N, 'scenarios': [{'id': 'role:scenario', 'name': 'scenario', 'role': 'role', 'status': 'passed/failed', 'duration': seconds, 'return_code': N}], 'passed': N, 'failed': N, 'timestamp': 'ISO8601'}. Write to file specified by --json-report option. Ensure UTF-8 encoding and proper JSON formatting.",
+      "testStrategy": "Validate JSON structure against schema, test file writing with various scenarios, verify proper encoding, and confirm data accuracy.",
+      "priority": "medium",
+      "dependencies": [
+        4
+      ],
+      "status": "done",
+      "subtasks": []
+    },
+    {
+      "id": 8,
+      "title": "Markdown Report Generation",
+      "description": "Implement human-readable Markdown report for documentation and PR comments",
+      "details": "Extend reporter.py to generate Markdown reports with formatted table: | Scenario | Status | Duration |. Use emojis (✅/❌) or text indicators for pass/fail. Include summary statistics and timestamp. Write to file specified by --md-report option. Ensure proper Markdown formatting and UTF-8 encoding for emoji support.",
+      "testStrategy": "Test Markdown rendering in various viewers, verify table formatting, confirm emoji display, and validate file output.",
+      "priority": "medium",
+      "dependencies": [
+        4
+      ],
+      "status": "done",
+      "subtasks": []
+    },
+    {
+      "id": 9,
+      "title": "Exit Code and Error Handling",
+      "description": "Implement proper exit codes and comprehensive error handling for CI integration",
+      "details": "Ensure moltest exits with code 0 if all scenarios pass, non-zero if any fail. Handle various error conditions: Molecule not installed, no scenarios found, cache file issues, report writing failures. Provide clear error messages for each condition. Handle keyboard interrupts gracefully by cleaning up running processes. Add version compatibility checks for Ansible Core 2.15 and Molecule >= 4.0.",
+      "testStrategy": "Test exit codes with various scenario outcomes, verify error handling for missing dependencies, confirm graceful interrupt handling, and validate version checks.",
+      "priority": "high",
+      "dependencies": [
+        4,
+        5,
+        6
+      ],
+      "status": "done",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement Exit Code Logic",
+          "description": "Modify the main execution flow to return appropriate exit codes based on test results",
+          "dependencies": [],
+          "details": "Update the main function to return exit code 0 when all scenarios pass successfully. Return exit code 1 when any scenario fails. Ensure this exit code is properly propagated to the system when the program terminates. Add a constant or enum to define exit codes for different failure types for future extensibility.",
+          "status": "done",
+          "testStrategy": "Create test cases that run scenarios with known passing and failing tests, then verify the process exit code matches expectations."
+        },
+        {
+          "id": 2,
+          "title": "Implement Dependency Validation",
+          "description": "Add validation for required dependencies and version compatibility checks",
+          "dependencies": [],
+          "details": "Create a function to check if Molecule is installed and accessible. Implement version compatibility checks for Ansible Core 2.15+ and Molecule 4.0+. Use subprocess to run version check commands. Return specific error codes and messages when dependencies are missing or incompatible versions are detected. Handle these checks early in program execution.",
+          "status": "done",
+          "testStrategy": "Create mock environments with various versions of dependencies to test detection logic and error messages."
+        },
+        {
+          "id": 3,
+          "title": "Implement File Operation Error Handling",
+          "description": "Add robust error handling for all file operations including cache and report files",
+          "dependencies": [],
+          "details": "Wrap all file operations (read/write) in try-except blocks with specific error messages. Handle cache file issues such as permission errors, corruption, or missing files. Add error handling for report writing failures with appropriate error codes. Implement a function to validate cache file integrity before using it. Ensure temporary files are cleaned up even when errors occur.",
+          "status": "done",
+          "testStrategy": "Test with simulated file permission issues, corrupted cache files, and disk-full scenarios."
+        },
+        {
+          "id": 4,
+          "title": "Implement Scenario Validation and Error Handling",
+          "description": "Add checks and error handling for scenario discovery and validation",
+          "dependencies": [
+            2
+          ],
+          "details": "Implement error handling for when no scenarios are found in the project. Add validation for scenario configuration files with clear error messages for malformed configs. Handle path resolution errors when locating scenario directories. Return specific error codes for each scenario-related error condition. Add logging to help diagnose scenario discovery issues.",
+          "status": "done",
+          "testStrategy": "Test with projects containing no scenarios, invalid scenario configurations, and inaccessible scenario paths."
+        },
+        {
+          "id": 5,
+          "title": "Implement Signal Handling and Graceful Shutdown",
+          "description": "Add signal handlers to ensure clean process termination on interrupts",
+          "dependencies": [
+            1,
+            3
+          ],
+          "details": "Implement signal handlers for SIGINT, SIGTERM to catch keyboard interrupts (Ctrl+C) and termination signals. Ensure all child processes are properly terminated when the program is interrupted. Add cleanup functions to remove temporary files and restore terminal state. Log appropriate messages when shutdown is triggered by signals. Ensure the correct exit code is still returned even during interruption.",
+          "status": "done",
+          "testStrategy": "Test by sending signals to the process during execution and verifying all child processes are terminated and resources are cleaned up."
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Incremental Test Execution",
+      "description": "Implement --rerun-failed functionality using cached results",
+      "details": "Integrate cache system with main execution flow. When --rerun-failed is specified, filter discovered scenarios to only those marked as failed in cache. Handle edge cases: no cache file (run all with warning), no failed scenarios (exit with message), new scenarios not in cache (include in run). Update cache after each run with latest results. Provide clear feedback about which scenarios are being run and why.",
+      "testStrategy": "Test --rerun-failed with various cache states, verify correct scenario filtering, confirm cache updates, and validate user feedback messages.",
+      "priority": "medium",
+      "dependencies": [
+        5,
+        9
+      ],
+      "status": "done",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement cache reading for failed scenarios",
+          "description": "Create functionality to read the cache file and extract the list of failed scenarios from the previous test run.",
+          "dependencies": [],
+          "details": "Create a function that reads the cache file (handling the case where it doesn't exist), parses its content, and returns a list of scenario identifiers that were marked as failed in the previous run. Include proper error handling for corrupted cache files. The function should return an empty list if no cache exists, along with a flag indicating this situation.",
+          "status": "done",
+          "testStrategy": "Unit test with mock cache files containing various combinations of passed/failed scenarios, missing files, and corrupted content."
+        },
+        {
+          "id": 2,
+          "title": "Add command line argument parsing for --rerun-failed",
+          "description": "Extend the command line argument parser to recognize and process the --rerun-failed flag.",
+          "dependencies": [],
+          "details": "Update the argument parser to accept the --rerun-failed flag. When this flag is present, set a boolean property in the configuration object that will be used to determine if only failed tests should be run. Ensure the help documentation is updated to explain this new option.",
+          "status": "done",
+          "testStrategy": "Unit test the argument parser with various combinations of arguments including --rerun-failed."
+        },
+        {
+          "id": 3,
+          "title": "Implement test filtering based on failed scenarios",
+          "description": "Create a filtering mechanism that limits test execution to only the scenarios that previously failed.",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Develop a filter function that takes the complete list of discovered scenarios and the list of failed scenarios from the cache. When --rerun-failed is active, return only the scenarios that match the failed list. Handle the special case where a scenario exists in the current test suite but wasn't in the cache (consider these as new and include them in the run). Provide appropriate logging about which scenarios are being included/excluded and why.",
+          "status": "done",
+          "testStrategy": "Unit test with various combinations of current scenarios, cached failed scenarios, and new scenarios not in cache."
+        },
+        {
+          "id": 4,
+          "title": "Implement cache updating after test execution",
+          "description": "Update the cache with the latest test results after each test run.",
+          "dependencies": [
+            1
+          ],
+          "details": "Create a function that takes the test execution results and updates the cache file. The function should preserve information about tests that weren't run in the current execution (if --rerun-failed was used) while updating the status of tests that were run. Ensure atomic writing to prevent cache corruption if the process is interrupted.",
+          "status": "done",
+          "testStrategy": "Unit test with various scenarios of current and previous results, verifying the cache is correctly merged and updated."
+        },
+        {
+          "id": 5,
+          "title": "Integrate rerun-failed workflow with main execution flow",
+          "description": "Connect all components to implement the complete --rerun-failed functionality in the main test execution flow.",
+          "dependencies": [
+            3,
+            4
+          ],
+          "details": "Modify the main test execution flow to use the filtering mechanism when --rerun-failed is specified. Handle edge cases: display a warning when --rerun-failed is specified but no cache exists (run all tests), exit with an informative message when there are no failed tests to rerun. After test execution, update the cache with new results. Implement clear console feedback throughout the process to inform users about which scenarios are being run and why.",
+          "status": "done",
+          "testStrategy": "Integration tests covering the complete workflow with various scenarios: some failed tests, no failed tests, no cache file, etc. Verify correct console output for each case."
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "CI/CD Integration Features",
+      "description": "Implement CI-specific features for GitLab CI and GitHub Actions integration",
+      "details": "Add CI environment detection (CI=true, etc.) for automatic --no-color. Optimize output for CI logs with clear section headers. Ensure report files are written to accessible locations. Add example CI configurations for GitLab CI and GitHub Actions in documentation. Test containerized execution scenarios. Validate artifact generation and upload workflows.",
+      "testStrategy": "Test in actual CI environments (GitLab CI, GitHub Actions), verify artifact generation, confirm output readability in CI logs, and validate example configurations.",
+      "priority": "medium",
+      "dependencies": [
+        7,
+        8,
+        9
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 12,
+      "title": "Documentation and User Guide",
+      "description": "Create comprehensive documentation including installation, usage examples, and CI integration guides",
+      "details": "Write README.md with installation instructions (pip install), basic usage examples, all CLI options documentation. Include CI integration examples for GitLab CI and GitHub Actions. Document recommended versions: Ansible Core 2.15 + Molecule >= 4.0. Add troubleshooting section for common issues. Create example project structure showing typical Molecule scenario layouts. Include output format specifications for JSON and Markdown reports.",
+      "testStrategy": "Review documentation for completeness and accuracy, test all provided examples, verify installation instructions work on clean systems, and validate CI examples in real environments.",
+      "priority": "medium",
+      "dependencies": [
+        11
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Create Installation and Setup Documentation",
+          "description": "Write the installation section of the README.md including pip installation instructions and version requirements for Ansible Core and Molecule.",
+          "dependencies": [],
+          "details": "Create the first section of README.md covering: 1) Installation command with pip, 2) Required and recommended versions (Ansible Core 2.15+ and Molecule 4.0+), 3) Any dependencies that need to be installed, 4) Basic setup instructions after installation. Format with proper markdown headings and code blocks for commands.",
+          "status": "pending",
+          "testStrategy": "Verify installation instructions by following them in a clean environment to ensure they work as documented."
+        },
+        {
+          "id": 2,
+          "title": "Document CLI Options and Basic Usage",
+          "description": "Document all available CLI options and provide basic usage examples showing how to use the tool in different scenarios.",
+          "dependencies": [
+            1
+          ],
+          "details": "Create a section in README.md that lists all CLI options with descriptions, default values, and usage examples. Include basic usage patterns showing how to run the tool with different configurations. Use tables for option documentation and code blocks for examples. Cover all command flags and environment variables that affect behavior.",
+          "status": "pending",
+          "testStrategy": "Test each documented CLI option to ensure it works as described and that all options are included."
+        },
+        {
+          "id": 3,
+          "title": "Create CI Integration Guides",
+          "description": "Write detailed guides for integrating the tool with GitLab CI and GitHub Actions CI pipelines.",
+          "dependencies": [
+            2
+          ],
+          "details": "Create a CI integration section in README.md with subsections for: 1) GitLab CI integration with example .gitlab-ci.yml snippets, 2) GitHub Actions integration with example workflow YAML, 3) Best practices for CI integration including caching, parallel execution, and artifact handling. Include complete working examples that users can copy and adapt.",
+          "status": "pending",
+          "testStrategy": "Test the provided CI configuration examples in actual GitLab CI and GitHub Actions environments to verify they work correctly."
+        },
+        {
+          "id": 4,
+          "title": "Document Example Project Structure and Molecule Scenarios",
+          "description": "Create documentation showing typical project structures and Molecule scenario layouts with explanations.",
+          "dependencies": [
+            2
+          ],
+          "details": "Create a section in README.md that illustrates: 1) Example directory structure for a typical project, 2) Multiple Molecule scenario configurations showing different testing approaches, 3) Explanation of key files and their purpose, 4) Best practices for organizing tests. Use ASCII diagrams or markdown formatting to clearly show the directory structure and relationships between files.",
+          "status": "pending",
+          "testStrategy": "Create a sample project following the documented structure to verify it represents a working configuration."
+        },
+        {
+          "id": 5,
+          "title": "Add Output Format Specifications and Troubleshooting Guide",
+          "description": "Document the JSON and Markdown report formats and create a troubleshooting section for common issues.",
+          "dependencies": [
+            2,
+            3,
+            4
+          ],
+          "details": "Create the final sections of README.md covering: 1) Detailed specifications of JSON output format with field descriptions and example output, 2) Markdown report format with example, 3) Troubleshooting section organized by common error messages or symptoms with solutions, 4) FAQ section based on anticipated user questions. Include links to relevant sections within the document for cross-referencing.",
+          "status": "pending",
+          "testStrategy": "Generate actual output reports in both formats and compare with documentation to ensure accuracy. Review troubleshooting guide with team members to ensure common issues are covered."
+        }
+      ]
+    }
+  ]
+}

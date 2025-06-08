@@ -1,0 +1,43 @@
+# Task ID: 3
+# Title: Molecule Scenario Discovery Engine
+# Status: done
+# Dependencies: 1
+# Priority: high
+# Description: Implement automatic discovery of all Molecule scenarios across the project
+# Details:
+Create discovery.py module using pathlib to find all molecule.yml files under molecule/ directories. Parse scenario structure to extract: scenario name (parent dir of molecule.yml), role name (if applicable), base execution path. Handle both single-role and multi-role repositories. Generate unique scenario identifiers like 'role:scenario' or 'scenario' for top-level. Return list of scenario objects with name, path, and execution context. Sort scenarios for consistent ordering.
+
+# Test Strategy:
+Test discovery on various project structures: single role with multiple scenarios, multi-role repos, playbook-only repos. Verify correct scenario identification and path resolution.
+
+# Subtasks:
+## 1. Create discovery.py module with file finding functionality [done]
+### Dependencies: None
+### Description: Implement the basic structure of discovery.py with functions to recursively find all molecule.yml files in the project directory structure
+### Details:
+Create a new discovery.py module with a function that uses pathlib.Path to recursively search for all molecule.yml files. The function should take a base directory as input and return a list of paths to all molecule.yml files found. Handle edge cases like symlinks and permission errors. Include docstrings and type hints for better code quality.
+
+## 2. Implement scenario structure parsing [done]
+### Dependencies: 3.1
+### Description: Create functions to parse the directory structure around each molecule.yml file to extract scenario name, role name, and base execution path
+### Details:
+For each molecule.yml path, determine: 1) scenario name (parent directory name), 2) role name if applicable (check if molecule.yml is under a 'roles/X/molecule' path), 3) base execution path (directory from which molecule commands should run). Create a ScenarioInfo class or dataclass to store this information. Handle both single-role and multi-role repository structures.
+
+## 3. Generate unique scenario identifiers [done]
+### Dependencies: 3.2
+### Description: Create logic to generate consistent, unique identifiers for each scenario based on its location
+### Details:
+Implement a function that generates unique scenario identifiers following the pattern 'role:scenario' for role-based scenarios or just 'scenario' for top-level scenarios. Ensure identifiers are unique across the project. Add this identifier to the ScenarioInfo objects created in the previous subtask.
+
+## 4. Implement scenario sorting and result formatting [done]
+### Dependencies: 3.3
+### Description: Create functionality to sort scenarios in a consistent order and format the final result list
+### Details:
+Implement sorting logic to ensure scenarios are returned in a consistent order (e.g., alphabetically by identifier). Create a function that takes the list of ScenarioInfo objects and returns them in the required format with name, path, and execution context. Ensure the output format is consistent and well-documented.
+
+## 5. Create main discovery function and integration tests [done]
+### Dependencies: 3.4
+### Description: Implement the main discovery function that orchestrates the entire process and write integration tests
+### Details:
+Create a main discover_scenarios() function that orchestrates the entire process: finding molecule.yml files, parsing scenario structure, generating identifiers, sorting, and returning the final list. Add proper error handling, logging, and documentation. Ensure the function has appropriate parameters (like base directory) with sensible defaults.
+

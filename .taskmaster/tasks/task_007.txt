@@ -1,0 +1,11 @@
+# Task ID: 7
+# Title: JSON Report Generation
+# Status: done
+# Dependencies: 4
+# Priority: medium
+# Description: Implement structured JSON report output for CI integration
+# Details:
+Extend reporter.py to generate JSON reports with structure: {'total_scenarios': N, 'scenarios': [{'id': 'role:scenario', 'name': 'scenario', 'role': 'role', 'status': 'passed/failed', 'duration': seconds, 'return_code': N}], 'passed': N, 'failed': N, 'timestamp': 'ISO8601'}. Write to file specified by --json-report option. Ensure UTF-8 encoding and proper JSON formatting.
+
+# Test Strategy:
+Validate JSON structure against schema, test file writing with various scenarios, verify proper encoding, and confirm data accuracy.
