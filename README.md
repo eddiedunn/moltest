@@ -100,7 +100,7 @@ moltest run [OPTIONS]
 *   `--md-report [PATH]`, `-m`: Save a Markdown report. Defaults to `moltest_report.md` if no path is provided.
 *   `--junit-xml [PATH]`, `-x`: Save results in JUnit XML format. Defaults to `moltest_report.xml` if no path is provided.
 *   `--roles-path [PATH]`: Directory containing Ansible roles (used for `ANSIBLE_ROLES_PATH`, default: `roles`).
-*   `--capture [MODE]`: Output capture mode (`fd`, `tee`, or `no`). `-s` is shorthand for `--capture no`.
+*   `--capture [MODE]`: Output capture mode (`fd`, `tee`, or `no`). `-s` is shorthand for `--capture no` and streams output in real time.
 *   `--log-level TEXT`: Python logging level (e.g., `INFO`, `DEBUG`).
 *   `--log-file PATH`: Optional file to write logs to.
 *   `--no-color`: Disable colored output in the console. This is automatically enabled in CI environments or when stdout is not a TTY.
