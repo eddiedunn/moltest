@@ -132,6 +132,20 @@ MolTest uses a `.moltest_cache.json` file in the current working directory to st
     moltest clear-cache
     ```
 
+## Testing
+
+The project uses `pytest` for running automated tests. Tests are located in the `tests/` directory.
+
+To run all tests, ensure your virtual environment is activated, and then execute:
+
+```bash
+python -m pytest -v
+```
+
+Using `python -m pytest` is recommended as it ensures you are running the `pytest` installed within your active virtual environment, which helps avoid issues with mismatched interpreters or missing dependencies.
+
+For more detailed testing instructions, including how to run specific tests, see the `AGENTS.md` file.
+
 ## How it Works
 
 1.  **Discovery:** When `moltest run` is executed, it searches for `molecule/*/molecule.yml` files to identify available scenarios.

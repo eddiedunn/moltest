@@ -1,6 +1,3 @@
-import sys
-print(f"DEBUG: pytest sys.executable: {sys.executable}")
-print(f"DEBUG: pytest sys.path: {sys.path}")
 import pytest
 from unittest import mock
 import subprocess  # For subprocess.STDOUT
