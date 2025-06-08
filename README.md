@@ -155,6 +155,10 @@ For more detailed testing instructions, including how to run specific tests, see
 4.  **Reporting:** After execution, JSON and Markdown reports are generated summarizing the results.
 5.  **`--rerun-failed`:** If this option is used, MolTest consults the cache to identify scenarios that previously failed and only runs those.
 
+## Reporter Examples
+
+See [docs/reporter_examples.md](docs/reporter_examples.md) for short snippets showing how to use the functions in `moltest.reporter` for colorized output and report generation.
+
 ## Contributing
 
 (Details on how to contribute, coding standards, pull request process, etc., to be added.)
