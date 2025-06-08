@@ -233,10 +233,13 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario):
                         text=True,
                         bufsize=1,
                     ) as proc:
-                        # Loop through the output line by line, in real-time
-                        for line in proc.stdout:
-                            # For now, just print every line to the screen
-                            click.echo(f"    | {line.strip()}")
+                        if verbose > 0:
+                            # If verbose, stream the output
+                            for line in proc.stdout:
+                                click.echo(f"      {line.strip()}")
+                        else:
+                            # If not verbose, still consume output to avoid hanging
+                            proc.wait()
 
                     # After the `with` block, the process is guaranteed to be finished.
                     # We can now get the final return code.

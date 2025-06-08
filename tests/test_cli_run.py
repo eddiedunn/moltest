@@ -119,8 +119,8 @@ def mock_popen(mocker):
 
 
 # --- Test Cases ---
-def test_run_streams_output(runner, mock_dependencies, mock_popen):
-    """Output should be streamed line-by-line regardless of verbosity."""
+def test_run_streams_output_verbose(runner, mock_dependencies, mock_popen):
+    """Output should be streamed line-by-line when verbose flag is used."""
     mock_echo = mock_dependencies  # Get the patched click.echo from mock_dependencies
 
     # Configure the mock Popen process behavior for this test
@@ -128,17 +128,17 @@ def test_run_streams_output(runner, mock_dependencies, mock_popen):
     mock_popen.simulated_stderr_lines = ["Error message from command\n"] # Will be merged
     mock_popen.returncode_to_simulate = 0
 
-    # Invoke the 'run' command (verbosity ignored in this stage)
-    result = runner.invoke(cli, ['run'])
+    # Invoke the 'run' command with verbosity
+    result = runner.invoke(cli, ['run', '-v'])
 
     assert result.exit_code == 0, f"CLI command failed: {result.output}"
 
     # Verify that click.echo was called with the streamed lines
-    # Lines are prefixed with "    | "
+    # Lines are prefixed with six spaces
     expected_echo_calls = [
-        mock.call("    | First output line from command"),
-        mock.call("    | Second output line"),
-        mock.call("    | Error message from command"),
+        mock.call("      First output line from command"),
+        mock.call("      Second output line"),
+        mock.call("      Error message from command"),
     ]
 
     # Check if all expected calls are present among the actual calls to click.echo
@@ -159,8 +159,8 @@ def test_run_streams_output(runner, mock_dependencies, mock_popen):
     assert mock_popen.wait_called is False
 
 
-def test_run_streams_without_verbose(runner, mock_dependencies, mock_popen):
-    """Output should stream even when no -v flag is provided."""
+def test_run_consumes_output_without_verbose(runner, mock_dependencies, mock_popen):
+    """Output should not be streamed when no -v flag is provided."""
     mock_echo = mock_dependencies
 
     mock_popen.simulated_stdout_lines = ["Line A\n", "Line B\n"]
@@ -170,16 +170,17 @@ def test_run_streams_without_verbose(runner, mock_dependencies, mock_popen):
 
     assert result.exit_code == 0, f"CLI command failed: {result.output}"
 
-    expected_calls = [
-        mock.call("    | Line A"),
-        mock.call("    | Line B"),
+    # Ensure the output lines were not echoed
+    unwanted_calls = [
+        mock.call("      Line A"),
+        mock.call("      Line B"),
     ]
 
-    for expected_call in expected_calls:
-        assert expected_call in mock_echo.call_args_list
+    for unwanted_call in unwanted_calls:
+        assert unwanted_call not in mock_echo.call_args_list
 
-    # wait() should not be called in this simplified streaming mode
-    assert mock_popen.wait_called is False
+    # wait() should be called to consume output
+    assert mock_popen.wait_called is True
 
     # cwd should not be set
     assert mock_popen.cwd_received is None
