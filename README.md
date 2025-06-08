@@ -100,6 +100,8 @@ moltest run [OPTIONS]
 *   `--roles-path [PATH]`: Directory containing Ansible roles (used for `ANSIBLE_ROLES_PATH`, default: `roles`).
 *   `--no-color`: Disable colored output in the console. This is automatically enabled in CI environments or when stdout is not a TTY.
 *   `--verbose INTEGER`: Set verbosity level (0, 1, 2). Higher numbers provide more output.
+*   `--fail-fast`: Stop execution after the first failure.
+*   `--maxfail INTEGER`: Abort after N failures (0 for unlimited).
 *   `--help`: Show help for the `run` command.
 
 **Examples:**

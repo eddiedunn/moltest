@@ -314,6 +314,18 @@ def _run_scenario(record, verbose, roles_path_resolved):
 @click.option('--parallel', '-p', default=1, type=int, show_default=True,
               help='Number of scenarios to run concurrently.')
 @click.option(
+    '--fail-fast',
+    is_flag=True,
+    help='Stop execution after the first failure.'
+)
+@click.option(
+    '--maxfail',
+    default=0,
+    type=int,
+    show_default=True,
+    help='Abort after this many failures. 0 means unlimited.'
+)
+@click.option(
     '--roles-path',
     '-r',
     type=click.Path(file_okay=False, resolve_path=True),
@@ -321,7 +333,7 @@ def _run_scenario(record, verbose, roles_path_resolved):
     help='Directory containing Ansible roles. Used for ANSIBLE_ROLES_PATH.',
 )
 def run(ctx, rerun_failed, json_report, md_report, junit_xml, no_color, verbose, scenario,
-        id_expr, skip_tags, xfail_tags, parallel, roles_path):  # Add ctx parameter
+        id_expr, skip_tags, xfail_tags, parallel, fail_fast, maxfail, roles_path):  # Add ctx parameter
     """Run Molecule tests."""
     check_dependencies(ctx)  # Call dependency check early
 
@@ -355,6 +367,8 @@ def run(ctx, rerun_failed, json_report, md_report, junit_xml, no_color, verbose,
         click.echo(f"No color: {no_color}")
         click.echo(f"  Verbose: {verbose}")
         click.echo(f"  Parallel: {parallel}")
+        click.echo(f"  Fail fast: {fail_fast}")
+        click.echo(f"  Max fail: {maxfail}")
         click.echo(f"  Scenario(s) selected: {scenario}")
         click.echo(f"  Skip tags: {', '.join(skip_tags) if skip_tags else 'None'}")
         click.echo(f"  XFail tags: {', '.join(xfail_tags) if xfail_tags else 'None'}")
@@ -499,51 +513,83 @@ def run(ctx, rerun_failed, json_report, md_report, junit_xml, no_color, verbose,
                     )
 
             futures = {}
+            failure_count = 0
+            early_stop = False
+            record_iter = iter(execution_records)
             with ThreadPoolExecutor(max_workers=max(1, parallel)) as executor:
-                for record in execution_records:
+                for _ in range(min(parallel, len(execution_records))):
+                    record = next(record_iter, None)
+                    if record is None:
+                        break
                     call_hooks("before_scenario", record['id'])
                     print_scenario_start(record['id'], verbose=verbose, color_enabled=color_enabled)
                     fut = executor.submit(_run_scenario, record, verbose, roles_path_resolved)
-                    futures[fut] = record['id']
+                    futures[fut] = record
 
-                for fut in as_completed(futures):
-                    result_data = fut.result()
-                    if verbose > 0:
-                        for line in result_data['output_lines']:
-                            click.echo(line)
-                    if result_data.get('error_message'):
-                        click.echo(click.style(result_data['error_message'], fg='red'))
-                    if result_data['return_code'] == 0:
-                        click.echo(
-                            click.style(
-                                f"    Scenario {result_data['id']} completed successfully.",
-                                fg='green',
+                while futures:
+                    for fut in as_completed(list(futures)):
+                        record = futures.pop(fut)
+                        result_data = fut.result()
+                        if verbose > 0:
+                            for line in result_data['output_lines']:
+                                click.echo(line)
+                        if result_data.get('error_message'):
+                            click.echo(click.style(result_data['error_message'], fg='red'))
+                        if result_data['return_code'] == 0:
+                            click.echo(
+                                click.style(
+                                    f"    Scenario {result_data['id']} completed successfully.",
+                                    fg='green',
+                                )
                             )
-                        )
-                    else:
-                        click.echo(
-                            click.style(
-                                f"    Scenario {result_data['id']} failed with return code {result_data['return_code']}.",
-                                fg='red',
+                        else:
+                            click.echo(
+                                click.style(
+                                    f"    Scenario {result_data['id']} failed with return code {result_data['return_code']}.",
+                                    fg='red',
+                                )
                             )
+                        print_scenario_result(
+                            result_data['id'],
+                            result_data['status'],
+                            result_data['duration'],
+                            verbose=verbose,
+                            color_enabled=color_enabled,
                         )
-                    print_scenario_result(
-                        result_data['id'],
-                        result_data['status'],
-                        result_data['duration'],
-                        verbose=verbose,
-                        color_enabled=color_enabled,
-                    )
-                    scenario_results_list.append(
-                        {
-                            'id': result_data['id'],
-                            'status': result_data['status'],
-                            'duration': result_data['duration'],
-                            'return_code': result_data['return_code'],
-                        }
-                    )
-                    update_scenario_status(cache_data, result_data['id'], result_data['status'])
-                    call_hooks("after_scenario", result_data['id'], result_data['status'])
+                        scenario_results_list.append(
+                            {
+                                'id': result_data['id'],
+                                'status': result_data['status'],
+                                'duration': result_data['duration'],
+                                'return_code': result_data['return_code'],
+                            }
+                        )
+                        update_scenario_status(cache_data, result_data['id'], result_data['status'])
+                        call_hooks("after_scenario", result_data['id'], result_data['status'])
+
+                        if result_data['status'].lower() == 'failed' or result_data['return_code'] != 0:
+                            failure_count += 1
+
+                        if fail_fast or (maxfail > 0 and failure_count >= maxfail):
+                            click.echo(click.style(f"Early termination triggered after {failure_count} failure(s).", fg='yellow'))
+                            for pfut, prec in futures.items():
+                                pfut.cancel()
+                                print_scenario_result(prec['id'], 'skipped', None, verbose=verbose, color_enabled=color_enabled)
+                                scenario_results_list.append({'id': prec['id'], 'status': 'skipped', 'duration': None, 'return_code': 0})
+                                update_scenario_status(cache_data, prec['id'], 'skipped')
+                                call_hooks('after_scenario', prec['id'], 'skipped')
+                            early_stop = True
+                            futures.clear()
+                            break
+
+                        next_record = next(record_iter, None)
+                        if next_record is not None:
+                            call_hooks("before_scenario", next_record['id'])
+                            print_scenario_start(next_record['id'], verbose=verbose, color_enabled=color_enabled)
+                            new_fut = executor.submit(_run_scenario, next_record, verbose, roles_path_resolved)
+                            futures[new_fut] = next_record
+                    if early_stop:
+                        break
         finally:
             click.echo("\nSaving test results to cache...")
             try:
