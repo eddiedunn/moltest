@@ -340,6 +340,16 @@ def _run_scenario(record, verbose, roles_path_resolved):
     help='Abort after this many failures. 0 means unlimited.'
 )
 @click.option(
+    '--collect-only',
+    is_flag=True,
+    help='List discovered scenarios without running them.'
+)
+@click.option(
+    '--fixtures',
+    is_flag=True,
+    help='Display parameter sets for each scenario and exit.'
+)
+@click.option(
     '--roles-path',
     '-r',
     type=click.Path(file_okay=False, resolve_path=True),
@@ -347,7 +357,8 @@ def _run_scenario(record, verbose, roles_path_resolved):
     help='Directory containing Ansible roles. Used for ANSIBLE_ROLES_PATH.',
 )
 def run(ctx, rerun_failed, json_report, md_report, junit_xml, no_color, verbose, scenario,
-        id_expr, skip_tags, xfail_tags, parallel, fail_fast, maxfail, roles_path):  # Add ctx parameter
+        id_expr, skip_tags, xfail_tags, parallel, fail_fast, maxfail,
+        collect_only, fixtures, roles_path):  # Add ctx parameter
     """Run Molecule tests."""
     check_dependencies(ctx)  # Call dependency check early
 
@@ -411,6 +422,18 @@ def run(ctx, rerun_failed, json_report, md_report, junit_xml, no_color, verbose,
     
     try:
         all_discovered_scenarios = discover_scenarios(_PROJECT_ROOT)
+        if fixtures:
+            click.echo("Scenario fixtures:")
+            for s_data_item in all_discovered_scenarios:
+                click.echo(f"{s_data_item['id']}:")
+                params = s_data_item.get('parameters') or []
+                if params:
+                    for idx, param in enumerate(params):
+                        pid = param.get('id', str(idx))
+                        click.echo(f"  - {pid}")
+                else:
+                    click.echo("  <none>")
+            ctx.exit(0)
         if all_discovered_scenarios:
             click.echo("Discovered scenario IDs:")
             for s_data_item in all_discovered_scenarios:
@@ -470,6 +493,25 @@ def run(ctx, rerun_failed, json_report, md_report, junit_xml, no_color, verbose,
                 click.echo(click.style(f"Warning: Could not save cache file after determining no tests to run: {e}", fg="yellow"), err=True)
             call_hooks("after_run", [])
             ctx.exit(0) # Exit code 0 as no tests were meant to run.
+
+        if collect_only:
+            click.echo("Collected scenarios:")
+            for s_data in scenarios_to_run:
+                scenario_id_base = s_data['id']
+                param_sets = s_data.get('parameters') or [{'id': 'default', 'vars': {}}]
+                for idx, param in enumerate(param_sets):
+                    param_id = param.get('id', str(idx))
+                    full_id = (
+                        scenario_id_base
+                        if (
+                            s_data.get('parameters') is None
+                            and param_id == 'default'
+                            and len(param_sets) == 1
+                        )
+                        else f"{scenario_id_base}[{param_id}]"
+                    )
+                    click.echo(f"  - {full_id}")
+            ctx.exit(0)
 
         click.echo("\nPreparing to execute Molecule tests for targeted scenarios:")
         try:

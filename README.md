@@ -20,6 +20,7 @@ The primary goal of MolTest is to improve the efficiency and user experience of 
 *   **Rerun Failed:** Supports rerunning only the scenarios that failed in the previous execution.
 *   **Report Generation:** Creates detailed test reports in JSON, Markdown, and JUnit XML formats.
 *   **Flexible CLI:** Offers commands to `run` tests, `clear-cache`, and `show-cache`.
+*   **Collection and Fixture Listing:** Use `--collect-only` to list scenarios without running them and `--fixtures` to show available parameter sets.
 *   **Dependency Checks:** Verifies the presence and minimum versions of `molecule` and `ansible`.
 
 ## Requirements
@@ -102,6 +103,8 @@ moltest run [OPTIONS]
 *   `--verbose INTEGER`: Set verbosity level (0, 1, 2). Higher numbers provide more output.
 *   `--fail-fast`: Stop execution after the first failure.
 *   `--maxfail INTEGER`: Abort after N failures (0 for unlimited).
+*   `--collect-only`: List scenario IDs (including parameter identifiers) without running Molecule.
+*   `--fixtures`: Show parameter set names for each discovered scenario and exit.
 *   `--help`: Show help for the `run` command.
 
 **Examples:**
@@ -121,6 +124,14 @@ moltest run [OPTIONS]
 *   Filter scenarios with an expression:
     ```bash
     moltest run -k "web and not slow"
+    ```
+*   List scenarios without running them:
+    ```bash
+    moltest run --collect-only
+    ```
+*   Show parameter sets for each scenario:
+    ```bash
+    moltest run --fixtures
     ```
 *   Run all scenarios and save reports to custom paths:
     ```bash
