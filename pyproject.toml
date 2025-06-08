@@ -31,6 +31,12 @@ dependencies = [
     "colorama>=0.4"
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-mock>=3.0.0",
+]
+
 [project.scripts]
 moltest = "moltest.cli:cli"
 

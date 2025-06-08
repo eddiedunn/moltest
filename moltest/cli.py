@@ -201,46 +201,51 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario):
 
         click.echo("\nPreparing to execute Molecule tests for targeted scenarios:")
         original_cwd = Path.cwd()
-        click.echo(f"Original CWD: {original_cwd}")
-
+        # original_cwd is defined above the loop
         try:
             for s_data in scenarios_to_run:
                 scenario_id = s_data['id']
                 scenario_name = s_data['scenario_name']
-                execution_path = Path(s_data['execution_path'])
+                execution_path = Path(s_data['execution_path']) # This will be used in Popen's cwd
                 
                 molecule_command = f"molecule test -s {scenario_name}"
                 print_scenario_start(scenario_id, verbose=verbose)
-                original_cwd = os.getcwd()
+                # original_cwd = os.getcwd() # Removed
                 scenario_status = "unknown"
                 duration = None # Initialize duration
                 return_code = -1 # Default/error return code
                 try:
-                    os.chdir(execution_path)
+                    # os.chdir(execution_path) # Removed
                     if verbose > 0:
                         click.echo(f"    Running command: {molecule_command}")
                     command_parts = molecule_command.split()
                     start_time = time.monotonic()
-                    result = subprocess.run(command_parts, capture_output=True, text=True, check=False)
+                    # Use Popen to start the process without waiting
+                    # stdout=subprocess.PIPE tells Popen to capture the output for us to read
+                    # text=True decodes the output as text
+                    # bufsize=1 enables line-buffering, so we get lines as they are ready
+                    with subprocess.Popen(command_parts, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, cwd=execution_path) as proc:
+                        if verbose > 0:
+                            # If verbose, stream the output
+                            for line in proc.stdout:
+                                click.echo(f"      {line.strip()}") # Use a slightly different prefix
+                        else:
+                            # If not verbose, we still need to consume the output,
+                            # otherwise the process buffer can fill up and hang.
+                            # proc.wait() handles this efficiently without printing.
+                            proc.wait()
+
+                    # After the `with` block, the process is guaranteed to be finished.
+                    # We can now get the final return code.
                     end_time = time.monotonic()
                     duration = end_time - start_time
-                    return_code = result.returncode # Capture actual return code
+                    return_code = proc.returncode
                     
-                    if verbose > 0: # Control stdout/stderr visibility
-                        if result.stdout:
-                            click.echo(click.style("    Stdout:", fg='green' if not no_color else None))
-                            for line in result.stdout.splitlines():
-                                click.echo(f"      {line}")
-                        if result.stderr:
-                            click.echo(click.style("    Stderr:", fg='red' if not no_color else None))
-                            for line in result.stderr.splitlines():
-                                click.echo(f"      {line}")
-                    
-                    if result.returncode == 0:
+                    if return_code == 0:
                         click.echo(click.style(f"    Scenario {scenario_id} completed successfully.", fg='green'))
                         scenario_status = "passed"
                     else:
-                        click.echo(click.style(f"    Scenario {scenario_id} failed with return code {result.returncode}.", fg='red'))
+                        click.echo(click.style(f"    Scenario {scenario_id} failed with return code {return_code}.", fg='red'))
                         scenario_status = "failed"
 
                 except FileNotFoundError:
