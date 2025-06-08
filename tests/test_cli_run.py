@@ -24,6 +24,8 @@ class MockPopenProcess:
         self.simulated_stderr_lines = ["Simulated stderr line 1\n"] # Used if stderr is not STDOUT
         self.returncode_to_simulate = 0
         self.wait_called = False
+        # Track each invocation of Popen when the same instance is reused
+        self.call_history = []
 
         # stdout stream simulation
         if self.stderr_pipe_received == subprocess.STDOUT:
@@ -105,6 +107,12 @@ def mock_popen(mocker):
         mock_proc_instance.text_mode_received = kwargs.get('text')
         mock_proc_instance.bufsize_arg_received = kwargs.get('bufsize')
         mock_proc_instance.cwd_received = kwargs.get('cwd')
+
+        # Record this call so tests can verify multiple invocations
+        mock_proc_instance.call_history.append({
+            'args': args[0],
+            'cwd': kwargs.get('cwd')
+        })
 
         # Re-initialize the stdout iterator based on how Popen was called (stderr redirection)
         if mock_proc_instance.stderr_pipe_received == subprocess.STDOUT:
@@ -309,3 +317,34 @@ def test_default_report_paths(tmp_path, runner, mocker, monkeypatch, mock_popen,
 
         assert mock_json.call_args[0][1] == expected_json
         assert mock_md.call_args[0][1] == expected_md
+
+
+def test_run_uses_correct_cwd_multiple_scenarios(runner, mock_dependencies_multi, mock_popen):
+    """Each scenario should be executed in its own directory."""
+    result = runner.invoke(cli, ['run'])
+    assert result.exit_code == 0
+
+    cwds = [entry['cwd'] for entry in mock_popen.call_history]
+    assert cwds == [Path('/fake/path/role1'), Path('/fake/path/role2')]
+
+
+def test_run_handles_command_failure_return_code(runner, mock_dependencies, mock_popen):
+    """Non-zero return code from Molecule results in exit code 1."""
+    mock_popen.returncode_to_simulate = 2
+    result = runner.invoke(cli, ['run'])
+    assert result.exit_code == 1
+
+    failure_msgs = [c.args[0] for c in mock_dependencies.call_args_list if 'failed with return code' in c.args[0]]
+    assert any('failed with return code 2' in msg for msg in failure_msgs)
+
+
+def test_run_handles_popen_exception(runner, mock_dependencies, monkeypatch):
+    """If Popen itself raises an error the CLI still reports failure."""
+    def raise_fn(*args, **kwargs):
+        raise FileNotFoundError
+
+    monkeypatch.setattr('moltest.cli.subprocess.Popen', raise_fn)
+    result = runner.invoke(cli, ['run'])
+    assert result.exit_code == 1
+    error_msgs = [c.args[0] for c in mock_dependencies.call_args_list if 'Error:' in c.args[0]]
+    assert any('molecule command not found' in msg for msg in error_msgs)
