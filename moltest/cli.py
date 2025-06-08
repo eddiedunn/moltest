@@ -7,6 +7,8 @@ import sys
 import time
 from pathlib import Path
 
+from . import __version__
+
 from .discovery import discover_scenarios
 from .cache import (
     load_cache,
@@ -92,14 +94,14 @@ def check_dependencies(ctx):
 
 
 def get_version_message():
-    script_version = '0.1.0'
+    script_version = __version__
     # Temporarily disabled to bypass environment issues for testing
     ansible_version = "X.Y.Z (ansible version check disabled)"
     molecule_version = "A.B.C (molecule version check disabled)"
     return f"%(prog)s, version %(version)s\n{ansible_version}\n{molecule_version}"
 
 @click.group()
-@click.version_option(version='0.1.0', prog_name='moltest', message=get_version_message())
+@click.version_option(version=__version__, prog_name='moltest', message=get_version_message())
 def cli():
     """A CLI tool for running Molecule tests and generating reports."""
     pass
