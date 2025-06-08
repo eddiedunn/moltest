@@ -149,7 +149,7 @@ def test_run_streams_output_verbose(runner, mock_dependencies, mock_popen):
         assert expected_call in actual_calls, f"Expected echo call '{expected_call}' not found in actual calls: {actual_calls}"
 
     # Verify Popen was called correctly
-    assert mock_popen.cwd_received is None
+    assert mock_popen.cwd_received == Path('/fake/path/role_alpha')
     assert mock_popen.stdout_pipe_received == subprocess.PIPE
     assert mock_popen.stderr_pipe_received == subprocess.STDOUT
     assert mock_popen.text_mode_received is True
@@ -182,8 +182,8 @@ def test_run_consumes_output_without_verbose(runner, mock_dependencies, mock_pop
     # wait() should be called to consume output
     assert mock_popen.wait_called is True
 
-    # cwd should not be set
-    assert mock_popen.cwd_received is None
+    # cwd should be set to the scenario's execution path
+    assert mock_popen.cwd_received == Path('/fake/path/role_alpha')
     assert mock_popen.stderr_pipe_received == subprocess.STDOUT
 
 
