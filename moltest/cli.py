@@ -28,6 +28,7 @@ from .reporter import (
     print_summary_table,
     generate_json_report,
     generate_markdown_report,
+    generate_junit_xml_report,
 )
 
 # _PROJECT_ROOT is the current working directory from which moltest is invoked.
@@ -37,6 +38,7 @@ _PROJECT_ROOT = Path.cwd()
 # Default paths used by the CLI
 DEFAULT_JSON_REPORT = "moltest_report.json"
 DEFAULT_MD_REPORT = "moltest_report.md"
+DEFAULT_JUNIT_REPORT = "moltest_report.xml"
 DEFAULT_ROLES_PATH = "roles"
 
 # --- Plugin and Hook System -------------------------------------------------
@@ -297,6 +299,12 @@ def _run_scenario(record, verbose, roles_path_resolved):
               default=None,
               callback=lambda ctx, param, value: validate_report_path(ctx, param, value, '.md'),
               help=f'Output test results as a Markdown file. Defaults to {DEFAULT_MD_REPORT}.')
+@click.option('--junit-xml', '-x',
+              type=click.Path(dir_okay=False, writable=True, resolve_path=True),
+              flag_value=DEFAULT_JUNIT_REPORT,
+              default=None,
+              callback=lambda ctx, param, value: validate_report_path(ctx, param, value, '.xml'),
+              help=f'Output test results as a JUnit XML file. Defaults to {DEFAULT_JUNIT_REPORT}.')
 @click.option('--no-color', is_flag=True, help='Disable colored output.')
 @click.option('--verbose', '-v', count=True, help='Enable verbose output. Use -vv or -vvv for more verbosity.')
 @click.option('--scenario', '-s', default='all', help='Specify scenario(s) to run: "all", a specific ID, or comma-separated IDs.')
@@ -312,7 +320,7 @@ def _run_scenario(record, verbose, roles_path_resolved):
     default=None,
     help='Directory containing Ansible roles. Used for ANSIBLE_ROLES_PATH.',
 )
-def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario,
+def run(ctx, rerun_failed, json_report, md_report, junit_xml, no_color, verbose, scenario,
         id_expr, skip_tags, xfail_tags, parallel, roles_path):  # Add ctx parameter
     """Run Molecule tests."""
     check_dependencies(ctx)  # Call dependency check early
@@ -343,6 +351,7 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario,
         click.echo(f"Rerun failed: {rerun_failed}")
         click.echo(f"JSON report: {json_report}")
         click.echo(f"Markdown report: {md_report}")
+        click.echo(f"JUnit XML: {junit_xml}")
         click.echo(f"No color: {no_color}")
         click.echo(f"  Verbose: {verbose}")
         click.echo(f"  Parallel: {parallel}")
@@ -579,6 +588,25 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario,
                 )
             except (IOError, OSError) as e_report_md:
                 click.echo(click.style(f"Warning: Failed to generate Markdown report at '{md_report}': {e_report_md}", fg="yellow"), err=True)
+
+        if junit_xml:
+            if verbose > 0:
+                click.echo(f"Generating JUnit XML report at: {junit_xml}")
+            try:
+                generate_junit_xml_report(
+                    scenario_results_list,
+                    junit_xml,
+                    overall_duration=total_execution_duration,
+                    verbose=verbose,
+                )
+            except (IOError, OSError) as e_report_xml:
+                click.echo(
+                    click.style(
+                        f"Warning: Failed to generate JUnit XML report at '{junit_xml}': {e_report_xml}",
+                        fg="yellow",
+                    ),
+                    err=True,
+                )
 
         # Determine final exit code based on test results
         # This part is reached only if scenarios_to_run was not empty and tests were attempted.

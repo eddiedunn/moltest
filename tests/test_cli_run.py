@@ -83,6 +83,7 @@ def mock_dependencies(mocker):
     # Prevent actual report generation during tests
     mocker.patch('moltest.cli.generate_json_report')
     mocker.patch('moltest.cli.generate_markdown_report')
+    mocker.patch('moltest.cli.generate_junit_xml_report')
     # Patch click.echo to capture its output for assertions
     mocked_echo = mocker.patch('moltest.cli.click.echo')
     return mocked_echo
@@ -213,6 +214,7 @@ def mock_dependencies_no_scenarios(mocker):
     mocker.patch('click.core.Context.exit', side_effect=lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
     mocker.patch('moltest.cli.check_dependencies')
     mocker.patch('moltest.cli.click.prompt', return_value='roles')
+    mocker.patch('moltest.cli.generate_junit_xml_report')
     mocked_echo = mocker.patch('moltest.cli.click.echo')
     return mocked_echo
 
@@ -231,6 +233,7 @@ def mock_dependencies_multi(mocker):
     mocker.patch('click.core.Context.exit', side_effect=lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
     mocker.patch('moltest.cli.check_dependencies')
     mocker.patch('moltest.cli.click.prompt', return_value='roles')
+    mocker.patch('moltest.cli.generate_junit_xml_report')
     mocked_echo = mocker.patch('moltest.cli.click.echo')
     return mocked_echo
 
@@ -249,6 +252,7 @@ def mock_dependencies_tagged(mocker):
     mocker.patch('click.core.Context.exit', side_effect=lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
     mocker.patch('moltest.cli.check_dependencies')
     mocker.patch('moltest.cli.click.prompt', return_value='roles')
+    mocker.patch('moltest.cli.generate_junit_xml_report')
     mocked_echo = mocker.patch('moltest.cli.click.echo')
     return mocked_echo
 
@@ -275,6 +279,7 @@ def mock_dependencies_params(mocker):
     mocker.patch('click.core.Context.exit', side_effect=lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
     mocker.patch('moltest.cli.check_dependencies')
     mocker.patch('moltest.cli.click.prompt', return_value='roles')
+    mocker.patch('moltest.cli.generate_junit_xml_report')
     echo = mocker.patch('moltest.cli.click.echo')
     return {'echo': echo, 'start': start, 'result': result}
 
@@ -352,15 +357,18 @@ def test_default_report_paths(tmp_path, runner, mocker, monkeypatch, mock_popen,
         monkeypatch.setattr('moltest.cli._PROJECT_ROOT', Path.cwd())
         mock_json = mocker.patch('moltest.cli.generate_json_report')
         mock_md = mocker.patch('moltest.cli.generate_markdown_report')
+        mock_xml = mocker.patch('moltest.cli.generate_junit_xml_report')
 
-        result = runner.invoke(cli, ['run', '-j', '-m'])
+        result = runner.invoke(cli, ['run', '-j', '-m', '-x'])
         assert result.exit_code == 0
 
         expected_json = str(Path('moltest_report.json').resolve())
         expected_md = str(Path('moltest_report.md').resolve())
+        expected_xml = str(Path('moltest_report.xml').resolve())
 
         assert mock_json.call_args[0][1] == expected_json
         assert mock_md.call_args[0][1] == expected_md
+        assert mock_xml.call_args[0][1] == expected_xml
 
 
 def test_run_uses_correct_cwd_multiple_scenarios(runner, mock_dependencies_multi, mock_popen):

@@ -38,6 +38,7 @@ def after_run(results):
     mocker.patch('moltest.cli.click.prompt', return_value='roles')
     mocker.patch('moltest.cli.generate_json_report')
     mocker.patch('moltest.cli.generate_markdown_report')
+    mocker.patch('moltest.cli.generate_junit_xml_report')
 
     monkeypatch.setattr('moltest.cli.load_config', lambda: {'plugins': ['sample_plugin'], 'roles_path': 'roles'})
     monkeypatch.setattr('importlib.metadata.entry_points', lambda group=None: [])
