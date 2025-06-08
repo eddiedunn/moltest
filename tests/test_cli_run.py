@@ -77,7 +77,7 @@ def mock_dependencies(mocker):
     mocker.patch('moltest.cli.print_scenario_result')
     mocker.patch('moltest.cli.print_summary_table')
     # Avoid Click's Exit exception being caught by the CLI
-    mocker.patch('click.core.Context.exit', side_effect=lambda self, code=0: (_ for _ in ()).throw(SystemExit(code)))
+    mocker.patch('click.core.Context.exit', side_effect=lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
     # Skip dependency checks
     mocker.patch('moltest.cli.check_dependencies')
     # Patch click.echo to capture its output for assertions
@@ -187,3 +187,71 @@ def test_run_no_stream_not_verbose(runner, mock_dependencies, mock_popen):
 # - test_run_uses_correct_cwd_multiple_scenarios() (if discover_scenarios returns multiple)
 # - test_run_handles_command_failure_return_code()
 # - test_run_handles_popen_exception() (e.g., FileNotFoundError if Popen itself fails)
+# New fixtures for exit code tests
+@pytest.fixture
+def mock_dependencies_no_scenarios(mocker):
+    """Mocks dependencies with no discovered scenarios."""
+    mocker.patch('moltest.cli.discover_scenarios', return_value=[])
+    mocker.patch('moltest.cli.load_cache', return_value={'moltest_version': '0.1.0', 'last_run': '', 'scenarios': {}})
+    mocker.patch('moltest.cli.save_cache')
+    mocker.patch('moltest.cli.print_scenario_start')
+    mocker.patch('moltest.cli.print_scenario_result')
+    mocker.patch('moltest.cli.print_summary_table')
+    mocker.patch('click.core.Context.exit', side_effect=lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
+    mocker.patch('moltest.cli.check_dependencies')
+    mocked_echo = mocker.patch('moltest.cli.click.echo')
+    return mocked_echo
+
+@pytest.fixture
+def mock_dependencies_multi(mocker):
+    """Mocks dependencies returning two scenarios."""
+    mocker.patch('moltest.cli.discover_scenarios', return_value=[
+        {'id': 'role1:alpha', 'scenario_name': 'alpha', 'execution_path': '/fake/path/role1'},
+        {'id': 'role2:beta', 'scenario_name': 'beta', 'execution_path': '/fake/path/role2'},
+    ])
+    mocker.patch('moltest.cli.load_cache', return_value={'moltest_version': '0.1.0', 'last_run': '', 'scenarios': {}})
+    mocker.patch('moltest.cli.save_cache')
+    mocker.patch('moltest.cli.print_scenario_start')
+    mocker.patch('moltest.cli.print_scenario_result')
+    mocker.patch('moltest.cli.print_summary_table')
+    mocker.patch('click.core.Context.exit', side_effect=lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
+    mocker.patch('moltest.cli.check_dependencies')
+    mocked_echo = mocker.patch('moltest.cli.click.echo')
+    return mocked_echo
+
+
+def test_run_exits_when_no_scenarios(runner, mock_dependencies_no_scenarios):
+    """CLI exits with code 2 when no scenarios are discovered."""
+    result = runner.invoke(cli, ['run'])
+    assert result.exit_code == 2
+
+
+def test_run_failing_scenario_exit_code(runner, mock_dependencies_multi, mock_popen):
+    """Failure during scenario execution results in exit code 1."""
+    mock_popen.returncode_to_simulate = 1
+    result = runner.invoke(cli, ['run'])
+    assert result.exit_code == 1
+
+
+import click
+
+from moltest.cli import validate_report_path
+
+def test_validate_report_path(tmp_path):
+    """validate_report_path rejects wrong extensions and creates parents."""
+
+    @click.command()
+    @click.option('--path', callback=lambda ctx, param, val: validate_report_path(ctx, param, val, '.json'))
+    def dummy(path):
+        click.echo(path)
+
+    runner_local = CliRunner()
+    good = tmp_path / 'out' / 'file.json'
+    result = runner_local.invoke(dummy, ['--path', str(good)])
+    assert result.exit_code == 0
+    assert good.parent.exists()
+
+    bad = tmp_path / 'bad.txt'
+    result_bad = runner_local.invoke(dummy, ['--path', str(bad)])
+    assert result_bad.exit_code == 2
+    assert "'.json'" in result_bad.output
