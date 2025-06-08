@@ -170,6 +170,21 @@ def test_run_streams_output_verbose(runner, mock_dependencies, mock_popen):
     assert mock_popen.wait_called is False
 
 
+def test_run_streams_output_no_verbose(runner, mock_dependencies, mock_popen):
+    """`-s` should stream output even without `-v`."""
+    mock_echo = mock_dependencies
+
+    mock_popen.simulated_stdout_lines = ["Stream line 1\n"]
+    mock_popen.returncode_to_simulate = 0
+
+    result = runner.invoke(cli, ['run', '-s'])
+
+    assert result.exit_code == 0
+
+    assert mock.call("      Stream line 1") in mock_echo.call_args_list
+    assert mock_popen.wait_called is False
+
+
 def test_run_consumes_output_without_verbose(runner, mock_dependencies, mock_popen):
     """Output should not be streamed when no -v flag is provided."""
     mock_echo = mock_dependencies

@@ -259,17 +259,18 @@ def _run_scenario(record, verbose, roles_path_resolved, capture, log_level):
             cwd=execution_path,
             env=env,
         ) as proc:
-            if verbose > 0:
+            if capture == 'no':
+                # Always stream output when capture is disabled
                 for line in proc.stdout:
                     formatted = f"      {line.strip()}"
-                    if capture == 'no':
+                    click.echo(formatted)
+                    logger.log(log_level, formatted)
+            elif verbose > 0:
+                for line in proc.stdout:
+                    formatted = f"      {line.strip()}"
+                    if capture == 'tee':
                         click.echo(formatted)
-                        logger.log(log_level, formatted)
-                    elif capture == 'tee':
-                        click.echo(formatted)
-                        output_lines.append(formatted)
-                    else:
-                        output_lines.append(formatted)
+                    output_lines.append(formatted)
             else:
                 proc.wait()
         end_time = time.monotonic()
