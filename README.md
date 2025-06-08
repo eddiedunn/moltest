@@ -34,28 +34,40 @@ The primary goal of MolTest is to improve the efficiency and user experience of 
 
 ## Installation
 
-It is highly recommended to install MolTest within a Python virtual environment.
+We use `pyenv` for managing Python versions and `uv` for managing virtual environments and packages.
 
-1.  **Clone the repository (if not already done):**
+1.  **Ensure you have the desired Python version installed with `pyenv`:**
+    If you don't have the required Python version (e.g., 3.10), install it:
     ```bash
-    git clone <repository_url>  # Replace with actual URL if hosted
+    pyenv install 3.11.12 # Or your desired version
+    ```
+    Set it as your local or global Python version. For project-specific versioning:
+    ```bash
     cd moltest
+    pyenv local 3.11.12 # Sets .python-version file
     ```
 
-2.  **Create and activate a virtual environment:**
+2.  **Clone the repository (if not already done):**
     ```bash
-    python3 -m venv .venv
+    git clone <repository_url>  # Replace with actual URL if hosted
+    cd moltest # Ensure you are in the project directory where .python-version might be
+    ```
+
+3.  **Create and activate a virtual environment using `uv`:**
+    `uv` will respect the Python version selected by `pyenv`.
+    ```bash
+    uv venv .venv # This creates a virtual environment named .venv
     source .venv/bin/activate
     ```
     (On Windows, use `.venv\Scripts\activate`)
 
-3.  **Install MolTest in editable mode:**
+4.  **Install MolTest in editable mode using `uv`:**
     This allows you to use the CLI directly while also being able to modify the source code.
     ```bash
-    pip install -e .
+    uv pip install -e .
     ```
 
-4.  **Verify installation:**
+5.  **Verify installation:**
     ```bash
     moltest --version
     ```

@@ -24,7 +24,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Testing",
     "Environment :: Console",
-    "Framework :: Click",
 ]
 dependencies = [
     "click>=8.0",
