@@ -28,7 +28,8 @@ classifiers = [
 dependencies = [
     "click>=8.0",
     "packaging>=20.0",
-    "colorama>=0.4"
+    "colorama>=0.4",
+    "PyYAML>=5.0"  # Added for YAML parsing
 ]
 
 [project.optional-dependencies]
