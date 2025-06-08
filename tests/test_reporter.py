@@ -51,3 +51,19 @@ def test_generate_reports_empty(tmp_path):
     md_content = md_path.read_text()
     assert "No scenario results to report." in md_content
 
+
+def test_no_color_output(capsys):
+    from moltest.reporter import print_scenario_result, print_summary_table
+
+    print_scenario_result("role1:alpha", "passed", duration=1.0, color_enabled=False)
+    out1 = capsys.readouterr().out
+    assert "\x1b[" not in out1
+    assert "PASSED" in out1
+
+    print_summary_table([
+        {"id": "role1:alpha", "status": "passed", "duration": 1.0}
+    ], color_enabled=False)
+    out2 = capsys.readouterr().out
+    assert "\x1b[" not in out2
+    assert "role1:alpha" in out2
+

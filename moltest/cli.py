@@ -8,8 +8,22 @@ import time
 from pathlib import Path
 
 from .discovery import discover_scenarios
-from .cache import load_cache, save_cache, update_scenario_status, get_failed_scenarios, CACHE_FILENAME, get_empty_cache_structure
-from .reporter import print_scenario_start, print_scenario_result, print_summary_table, generate_json_report, generate_markdown_report
+from .cache import (
+    load_cache,
+    save_cache,
+    update_scenario_status,
+    get_failed_scenarios,
+    CACHE_FILENAME,
+    get_empty_cache_structure,
+)
+from .config import load_config, save_config
+from .reporter import (
+    print_scenario_start,
+    print_scenario_result,
+    print_summary_table,
+    generate_json_report,
+    generate_markdown_report,
+)
 
 # _PROJECT_ROOT is the current working directory from which moltest is invoked.
 # This is where the .moltest_cache.json will be expected/created.
@@ -132,14 +146,33 @@ def validate_report_path(ctx, param, value, expected_extension):
 @click.option('--no-color', is_flag=True, help='Disable colored output.')
 @click.option('--verbose', '-v', count=True, help='Enable verbose output. Use -vv or -vvv for more verbosity.')
 @click.option('--scenario', '-s', default='all', help='Specify scenario(s) to run: "all", a specific ID, or comma-separated IDs.')
-@click.option('--roles-path', '-r',
-              type=click.Path(file_okay=False, resolve_path=True),
-              default=DEFAULT_ROLES_PATH,
-              show_default=True,
-              help='Directory containing Ansible roles. Used for ANSIBLE_ROLES_PATH.')
+@click.option(
+    '--roles-path',
+    '-r',
+    type=click.Path(file_okay=False, resolve_path=True),
+    default=None,
+    help='Directory containing Ansible roles. Used for ANSIBLE_ROLES_PATH.',
+)
 def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, roles_path): # Add ctx parameter
     """Run Molecule tests."""
-    check_dependencies(ctx) # Call dependency check early
+    check_dependencies(ctx)  # Call dependency check early
+
+    color_env = os.getenv('CI', '').lower() != 'true' and sys.stdout.isatty()
+    color_enabled = not no_color and color_env
+
+    config = load_config()
+    if roles_path is None:
+        roles_path = config.get('roles_path')
+        if roles_path is None:
+            if sys.stdin.isatty():
+                roles_path = click.prompt('Path to Ansible roles', default=DEFAULT_ROLES_PATH)
+                save_config({'roles_path': roles_path})
+            else:
+                roles_path = DEFAULT_ROLES_PATH
+    else:
+        if roles_path != config.get('roles_path'):
+            save_config({'roles_path': roles_path})
+
     click.echo(f"Rerun failed: {rerun_failed}")
     click.echo(f"JSON report: {json_report}")
     click.echo(f"Markdown report: {md_report}")
@@ -151,6 +184,7 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
     roles_path_resolved = Path(roles_path)
     if not roles_path_resolved.is_absolute():
         roles_path_resolved = (_PROJECT_ROOT / roles_path_resolved).resolve()
+    click.echo(f"  Using roles path: {roles_path_resolved}")
 
     # _PROJECT_ROOT is defined at the top of the file by the cache import setup
     click.echo(f"\nProject root: {_PROJECT_ROOT}")
@@ -226,7 +260,7 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
                 execution_path = Path(s_data['execution_path'])  # Currently unused
                 
                 molecule_command = f"molecule test -s {scenario_name}"
-                print_scenario_start(scenario_id, verbose=verbose)
+                print_scenario_start(scenario_id, verbose=verbose, color_enabled=color_enabled)
                 scenario_status = "unknown"
                 duration = None # Initialize duration
                 return_code = -1 # Default/error return code
@@ -283,7 +317,13 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
                     if verbose > 0:
                         click.echo(click.style(f"    ERROR during {scenario_id}: {e}", fg='red' if not no_color else None))
                 finally:
-                    print_scenario_result(scenario_id, scenario_status, duration, verbose=verbose)
+                    print_scenario_result(
+                        scenario_id,
+                        scenario_status,
+                        duration,
+                        verbose=verbose,
+                        color_enabled=color_enabled,
+                    )
                     scenario_results_list.append({
                         'id': scenario_id, 
                         'status': scenario_status, 
@@ -304,7 +344,12 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
 
         overall_end_time = time.monotonic()
         total_execution_duration = overall_end_time - overall_start_time
-        print_summary_table(scenario_results_list, overall_duration=total_execution_duration, verbose=verbose)
+        print_summary_table(
+            scenario_results_list,
+            overall_duration=total_execution_duration,
+            verbose=verbose,
+            color_enabled=color_enabled,
+        )
 
         if json_report:
             if verbose > 0:
