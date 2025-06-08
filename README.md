@@ -164,6 +164,12 @@ For more detailed testing instructions, including how to run specific tests, see
 
 See [docs/reporter_examples.md](docs/reporter_examples.md) for short snippets showing how to use the functions in `moltest.reporter` for colorized output and report generation.
 
+## Plugin Hooks
+
+MolTest can load user-defined Python modules that implement optional hook functions.
+See [docs/plugin_example.md](docs/plugin_example.md) for a minimal example of how
+to register a plugin and the available hook names.
+
 ## Contributing
 
 (Details on how to contribute, coding standards, pull request process, etc., to be added.)
