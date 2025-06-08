@@ -138,6 +138,7 @@ def test_run_streams_output(runner, mock_dependencies, mock_popen):
     expected_echo_calls = [
         mock.call("    | First output line from command"),
         mock.call("    | Second output line"),
+        mock.call("    | Error message from command"),
     ]
 
     # Check if all expected calls are present among the actual calls to click.echo
@@ -150,7 +151,7 @@ def test_run_streams_output(runner, mock_dependencies, mock_popen):
     # Verify Popen was called correctly
     assert mock_popen.cwd_received is None
     assert mock_popen.stdout_pipe_received == subprocess.PIPE
-    assert mock_popen.stderr_pipe_received is None
+    assert mock_popen.stderr_pipe_received == subprocess.STDOUT
     assert mock_popen.text_mode_received is True
     assert mock_popen.bufsize_arg_received == 1
 
@@ -182,6 +183,7 @@ def test_run_streams_without_verbose(runner, mock_dependencies, mock_popen):
 
     # cwd should not be set
     assert mock_popen.cwd_received is None
+    assert mock_popen.stderr_pipe_received == subprocess.STDOUT
 
 
 # TODO: Add more tests:

@@ -223,9 +223,16 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario):
 
                     # Use Popen to start the process without waiting
                     # stdout=subprocess.PIPE tells Popen to capture the output for us to read
+                    # stderr=subprocess.STDOUT merges stderr into stdout so messages appear in order
                     # text=True decodes the output as text
                     # bufsize=1 enables line-buffering, so we get lines as they are ready
-                    with subprocess.Popen(command_parts, stdout=subprocess.PIPE, text=True, bufsize=1) as proc:
+                    with subprocess.Popen(
+                        command_parts,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        bufsize=1,
+                    ) as proc:
                         # Loop through the output line by line, in real-time
                         for line in proc.stdout:
                             # For now, just print every line to the screen
