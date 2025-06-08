@@ -435,3 +435,47 @@ def test_k_expression_no_match(runner, mock_dependencies_multi, mock_popen):
     echo_msgs = [c.args[0] for c in mock_dependencies_multi.call_args_list]
     assert any('No Molecule tests will be run' in m for m in echo_msgs)
 
+
+def test_parallel_option_uses_executor(runner, mock_dependencies_multi, mock_popen, mocker):
+    """--parallel should run scenarios via ThreadPoolExecutor."""
+
+    executors = []
+
+    class DummyFuture:
+        def __init__(self, res):
+            self._res = res
+
+        def result(self):
+            return self._res
+
+    class DummyExecutor:
+        def __init__(self, max_workers=None):
+            self.max_workers = max_workers
+            self.submitted = []
+            executors.append(self)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+        def submit(self, fn, *args, **kwargs):
+            res = fn(*args, **kwargs)
+            fut = DummyFuture(res)
+            self.submitted.append(fut)
+            return fut
+
+    def dummy_as_completed(fs):
+        for f in fs:
+            yield f
+
+    mocker.patch('moltest.cli.ThreadPoolExecutor', DummyExecutor)
+    mocker.patch('moltest.cli.as_completed', dummy_as_completed)
+
+    result = runner.invoke(cli, ['run', '--parallel', '2'])
+    assert result.exit_code == 0
+
+    assert executors[0].max_workers == 2
+    assert len(executors[0].submitted) == 2
+

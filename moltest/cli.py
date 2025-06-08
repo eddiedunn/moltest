@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from importlib import import_module
 from importlib.metadata import entry_points
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from . import __version__
 
@@ -205,6 +206,75 @@ def compile_id_expression(expression: str):
 
     return matcher
 
+
+def _run_scenario(record, verbose, roles_path_resolved):
+    """Execute a single Molecule scenario and capture its output."""
+    full_id = record['id']
+    scenario_name = record['scenario_name']
+    execution_path = record['execution_path']
+    param_vars = record.get('vars', {})
+    is_xfail = record.get('is_xfail', False)
+
+    molecule_command = f"molecule test -s {scenario_name}"
+    output_lines = []
+    scenario_status = "unknown"
+    duration = None
+    return_code = -1
+    error_message = None
+    try:
+        if verbose > 0:
+            output_lines.append(f"    Running command: {molecule_command}")
+        command_parts = molecule_command.split()
+        start_time = time.monotonic()
+        env = os.environ.copy()
+        env['ANSIBLE_ROLES_PATH'] = str(roles_path_resolved)
+        for k, v in param_vars.items():
+            env[str(k)] = str(v)
+        with subprocess.Popen(
+            command_parts,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            cwd=execution_path,
+            env=env,
+        ) as proc:
+            if verbose > 0:
+                for line in proc.stdout:
+                    output_lines.append(f"      {line.strip()}")
+            else:
+                proc.wait()
+        end_time = time.monotonic()
+        duration = end_time - start_time
+        return_code = proc.returncode
+        scenario_status = "passed" if return_code == 0 else "failed"
+        if is_xfail:
+            if scenario_status == "failed":
+                scenario_status = "xfailed"
+                return_code = 0
+            else:
+                scenario_status = "xpassed"
+    except FileNotFoundError:
+        error_message = (
+            "    Error: molecule command not found. Is Molecule installed and in PATH?"
+        )
+        scenario_status = "failed"
+    except Exception as e:  # pragma: no cover - unexpected errors
+        scenario_status = "failed"
+        if verbose > 0:
+            output_lines.append(
+                click.style(f"    ERROR during {full_id}: {e}", fg='red')
+            )
+
+    return {
+        'id': full_id,
+        'status': scenario_status,
+        'duration': duration,
+        'return_code': return_code,
+        'output_lines': output_lines,
+        'error_message': error_message,
+    }
+
 @cli.command()
 @click.pass_context # Add pass_context decorator
 @click.option(
@@ -233,6 +303,8 @@ def compile_id_expression(expression: str):
 @click.option('-k', 'id_expr', default=None, help='Filter scenarios by ID expression (e.g., "foo and not bar")')
 @click.option('--skip', 'skip_tags', multiple=True, help='Skip scenarios matching the given tag. Can be used multiple times.')
 @click.option('--xfail', 'xfail_tags', multiple=True, help='Expect failure for scenarios with the given tag. Can be used multiple times.')
+@click.option('--parallel', '-p', default=1, type=int, show_default=True,
+              help='Number of scenarios to run concurrently.')
 @click.option(
     '--roles-path',
     '-r',
@@ -240,7 +312,8 @@ def compile_id_expression(expression: str):
     default=None,
     help='Directory containing Ansible roles. Used for ANSIBLE_ROLES_PATH.',
 )
-def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, id_expr, skip_tags, xfail_tags, roles_path):  # Add ctx parameter
+def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario,
+        id_expr, skip_tags, xfail_tags, parallel, roles_path):  # Add ctx parameter
     """Run Molecule tests."""
     check_dependencies(ctx)  # Call dependency check early
 
@@ -272,6 +345,7 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
         click.echo(f"Markdown report: {md_report}")
         click.echo(f"No color: {no_color}")
         click.echo(f"  Verbose: {verbose}")
+        click.echo(f"  Parallel: {parallel}")
         click.echo(f"  Scenario(s) selected: {scenario}")
         click.echo(f"  Skip tags: {', '.join(skip_tags) if skip_tags else 'None'}")
         click.echo(f"  XFail tags: {', '.join(xfail_tags) if xfail_tags else 'None'}")
@@ -362,19 +436,30 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
 
         click.echo("\nPreparing to execute Molecule tests for targeted scenarios:")
         try:
+            execution_records = []
             for s_data in scenarios_to_run:
                 scenario_id_base = s_data['id']
                 scenario_name = s_data['scenario_name']
-                execution_path = Path(s_data['execution_path'])  # Currently unused
+                execution_path = Path(s_data['execution_path'])
                 param_sets = s_data.get('parameters') or [{'id': 'default', 'vars': {}}]
                 tags = set(s_data.get('tags', []))
 
                 for idx, param in enumerate(param_sets):
                     param_id = param.get('id', str(idx))
-                    full_id = scenario_id_base if (s_data.get('parameters') is None and param_id == 'default' and len(param_sets) == 1) else f"{scenario_id_base}[{param_id}]"
+                    full_id = (
+                        scenario_id_base
+                        if (
+                            s_data.get('parameters') is None
+                            and param_id == 'default'
+                            and len(param_sets) == 1
+                        )
+                        else f"{scenario_id_base}[{param_id}]"
+                    )
 
                     if tags & skip_tags_set:
-                        click.echo(f"Skipping {full_id} due to tag match: {', '.join(tags & skip_tags_set)}")
+                        click.echo(
+                            f"Skipping {full_id} due to tag match: {', '.join(tags & skip_tags_set)}"
+                        )
                         print_scenario_result(
                             full_id,
                             "skipped",
@@ -394,93 +479,62 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
                         call_hooks("after_scenario", full_id, 'skipped')
                         continue
 
-                    is_xfail = bool(tags & xfail_tags_set)
-                    molecule_command = f"molecule test -s {scenario_name}"
-                    call_hooks("before_scenario", full_id)
-                    print_scenario_start(full_id, verbose=verbose, color_enabled=color_enabled)
-                    scenario_status = "unknown"
-                    duration = None
-                    return_code = -1
-                    try:
-                        if verbose > 0:
-                            click.echo(f"    Running command: {molecule_command}")
-                        command_parts = molecule_command.split()
-                        start_time = time.monotonic()
+                    execution_records.append(
+                        {
+                            'id': full_id,
+                            'scenario_name': scenario_name,
+                            'execution_path': execution_path,
+                            'vars': param.get('vars', {}),
+                            'is_xfail': bool(tags & xfail_tags_set),
+                        }
+                    )
 
-                        # Use Popen to start the process without waiting
-                        # stdout=subprocess.PIPE tells Popen to capture the output for us to read
-                        # stderr=subprocess.STDOUT merges stderr into stdout so messages appear in order
-                        # text=True decodes the output as text
-                        # bufsize=1 enables line-buffering, so we get lines as they are ready
-                        env = os.environ.copy()
-                        env['ANSIBLE_ROLES_PATH'] = str(roles_path_resolved)
-                        for k, v in param.get('vars', {}).items():
-                            env[str(k)] = str(v)
-                        with subprocess.Popen(
-                            command_parts,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT,
-                            text=True,
-                            bufsize=1,
-                            cwd=execution_path,
-                            env=env,
-                        ) as proc:
-                            if verbose > 0:
-                                # If verbose, stream the output
-                                for line in proc.stdout:
-                                    click.echo(f"      {line.strip()}")
-                            else:
-                                # If not verbose, still consume output to avoid hanging
-                                proc.wait()
+            futures = {}
+            with ThreadPoolExecutor(max_workers=max(1, parallel)) as executor:
+                for record in execution_records:
+                    call_hooks("before_scenario", record['id'])
+                    print_scenario_start(record['id'], verbose=verbose, color_enabled=color_enabled)
+                    fut = executor.submit(_run_scenario, record, verbose, roles_path_resolved)
+                    futures[fut] = record['id']
 
-                        # After the `with` block, the process is guaranteed to be finished.
-                        # We can now get the final return code.
-                        end_time = time.monotonic()
-                        duration = end_time - start_time
-                        return_code = proc.returncode
-
-                        if return_code == 0:
-                            click.echo(click.style(f"    Scenario {full_id} completed successfully.", fg='green'))
-                            scenario_status = "passed"
-                        else:
-                            click.echo(click.style(f"    Scenario {full_id} failed with return code {return_code}.", fg='red'))
-                            scenario_status = "failed"
-
-                        if is_xfail:
-                            if scenario_status == "failed":
-                                scenario_status = "xfailed"
-                                return_code = 0
-                            else:
-                                scenario_status = "xpassed"
-
-                    except FileNotFoundError:
-                        click.echo(click.style(f"    Error: molecule command not found. Is Molecule installed and in PATH?", fg='red'))
-                        scenario_status = "failed"
-                        # return_code remains -1 or its last value if FileNotFoundError occurs before subprocess.run
-                    except Exception as e:
-                        scenario_status = "failed"  # Ensure status is failed
-                        # return_code remains -1 or its last value if a general Exception occurs before result.returncode assignment
-                        if verbose > 0:
-                            click.echo(click.style(f"    ERROR during {full_id}: {e}", fg='red' if not no_color else None))
-                    finally:
-                        print_scenario_result(
-                            full_id,
-                            scenario_status,
-                            duration,
-                            verbose=verbose,
-                            color_enabled=color_enabled,
+                for fut in as_completed(futures):
+                    result_data = fut.result()
+                    if verbose > 0:
+                        for line in result_data['output_lines']:
+                            click.echo(line)
+                    if result_data.get('error_message'):
+                        click.echo(click.style(result_data['error_message'], fg='red'))
+                    if result_data['return_code'] == 0:
+                        click.echo(
+                            click.style(
+                                f"    Scenario {result_data['id']} completed successfully.",
+                                fg='green',
+                            )
                         )
-                        scenario_results_list.append(
-                            {
-                                'id': full_id,
-                                'status': scenario_status,
-                                'duration': duration,
-                                'return_code': return_code,
-                            }
+                    else:
+                        click.echo(
+                            click.style(
+                                f"    Scenario {result_data['id']} failed with return code {result_data['return_code']}.",
+                                fg='red',
+                            )
                         )
-
-                        update_scenario_status(cache_data, full_id, scenario_status)
-                        call_hooks("after_scenario", full_id, scenario_status)
+                    print_scenario_result(
+                        result_data['id'],
+                        result_data['status'],
+                        result_data['duration'],
+                        verbose=verbose,
+                        color_enabled=color_enabled,
+                    )
+                    scenario_results_list.append(
+                        {
+                            'id': result_data['id'],
+                            'status': result_data['status'],
+                            'duration': result_data['duration'],
+                            'return_code': result_data['return_code'],
+                        }
+                    )
+                    update_scenario_status(cache_data, result_data['id'], result_data['status'])
+                    call_hooks("after_scenario", result_data['id'], result_data['status'])
         finally:
             click.echo("\nSaving test results to cache...")
             try:
