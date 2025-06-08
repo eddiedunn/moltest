@@ -1,9 +1,36 @@
 #!/usr/bin/env python3
 
 from pathlib import Path
+import json
+import yaml
 
 # Common virtual environment directory names to exclude
 VENV_NAMES = {'.venv', 'venv', 'env'}
+
+
+def load_scenario_parameters(scenario_dir: Path) -> list[dict]:
+    """Load parameter sets for a scenario from YAML or JSON files."""
+    candidates = [
+        scenario_dir / "moltest.params.yml",
+        scenario_dir / "moltest.params.yaml",
+        scenario_dir / "moltest.params.json",
+    ]
+    for f in candidates:
+        if f.is_file():
+            try:
+                if f.suffix in {".yml", ".yaml"}:
+                    data = yaml.safe_load(f.read_text())
+                else:
+                    data = json.loads(f.read_text())
+            except Exception:
+                return []
+
+            if isinstance(data, list):
+                return data
+            if isinstance(data, dict) and isinstance(data.get("params"), list):
+                return data["params"]
+            return []
+    return []
 
 def find_molecule_yamls(project_root: Path, exclude_venv: bool = True):
     """Finds all molecule.yml files, potentially excluding venv directories."""
@@ -61,12 +88,15 @@ def parse_scenario(molecule_yml_path: Path):
                     if tag:
                         tags.append(tag)
 
+    params = load_scenario_parameters(molecule_yml_path.parent)
+
     return {
         'scenario_name': scenario_name,
         'role_name': role_name,
         'execution_path': str(execution_path.resolve()),
         'molecule_file_path': str(molecule_yml_path.resolve()),
         'tags': tags,
+        'parameters': params,
     }
 
 def generate_scenario_id(scenario_data: dict):
