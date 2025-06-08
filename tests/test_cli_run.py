@@ -1,6 +1,7 @@
 import pytest
 from unittest import mock
 import subprocess  # For subprocess.STDOUT
+import logging
 from click.testing import CliRunner
 from pathlib import Path
 
@@ -130,7 +131,7 @@ def mock_popen(mocker):
 
 # --- Test Cases ---
 def test_run_streams_output_verbose(runner, mock_dependencies, mock_popen):
-    """Output should be streamed line-by-line when verbose flag is used."""
+    """Output should stream when capture is disabled."""
     mock_echo = mock_dependencies  # Get the patched click.echo from mock_dependencies
 
     # Configure the mock Popen process behavior for this test
@@ -139,7 +140,7 @@ def test_run_streams_output_verbose(runner, mock_dependencies, mock_popen):
     mock_popen.returncode_to_simulate = 0
 
     # Invoke the 'run' command with verbosity
-    result = runner.invoke(cli, ['run', '-v'])
+    result = runner.invoke(cli, ['run', '-v', '-s'])
 
     assert result.exit_code == 0, f"CLI command failed: {result.output}"
 
@@ -195,6 +196,33 @@ def test_run_consumes_output_without_verbose(runner, mock_dependencies, mock_pop
     # cwd should be set to the scenario's execution path
     assert mock_popen.cwd_received == Path('/fake/path/role_alpha')
     assert mock_popen.stderr_pipe_received == subprocess.STDOUT
+
+
+def test_capture_suppresses_output_by_default(runner, mock_dependencies, mock_popen, mocker):
+    """Default capture mode should log but not echo output."""
+    logger_mock = mocker.MagicMock()
+    logger_mock.handlers = []
+    mocker.patch('moltest.cli.logger', logger_mock)
+
+    mock_popen.simulated_stdout_lines = ["Cap line\n"]
+
+    result = runner.invoke(cli, ['run', '-v'])
+    assert result.exit_code == 0
+
+    assert mock.call("      Cap line") not in mock_dependencies.call_args_list
+    logger_mock.log.assert_any_call(logging.INFO, "      Cap line")
+
+
+def test_log_level_controls_verbosity(runner, mock_dependencies, mock_popen, mocker):
+    """--log-level should configure logger level."""
+    logger_mock = mocker.MagicMock()
+    logger_mock.handlers = []
+    mocker.patch('moltest.cli.logger', logger_mock)
+
+    result = runner.invoke(cli, ['run', '--log-level', 'debug'])
+    assert result.exit_code == 0
+
+    logger_mock.setLevel.assert_called_with(logging.DEBUG)
 
 
 # TODO: Add more tests:
