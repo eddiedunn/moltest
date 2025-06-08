@@ -46,7 +46,7 @@ Homepage = "https://github.com/eddiedunn/moltest"
 Repository = "https://github.com/eddiedunn/moltest"
 
 [tool.hatch.version]
-path = "moltest/__init__.py"
+path = "src/moltest/__init__.py"
 
 [tool.hatch.build.targets.sdist]
 exclude = [
@@ -67,4 +67,4 @@ exclude = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["moltest"]
+packages = ["src/moltest"]

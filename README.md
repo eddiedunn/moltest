@@ -67,6 +67,7 @@ We use `pyenv` for managing Python versions and `uv` for managing virtual enviro
     ```bash
     uv pip install -e .
     ```
+    The Python package follows the `src/` layout, so all source files are located under `src/moltest`.
 
 5.  **Verify installation:**
     ```bash
