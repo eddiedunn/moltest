@@ -12,6 +12,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from . import __version__
 
+# Regex to match ANSI escape sequences for cleaning command output
+ANSI_ESCAPE_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences from text."""
+    return ANSI_ESCAPE_RE.sub("", text)
+
 from .discovery import discover_scenarios
 from .cache import (
     load_cache,
@@ -104,8 +112,14 @@ def check_dependencies(ctx):
         "molecule": "4.0.0"
     }
     dependencies = {
-        "molecule": {"cmd": ["molecule", "--version"], "version_regex": r"molecule(?:\s+([\d\.]+))"},
-        "ansible": {"cmd": ["ansible", "--version"], "version_regex": r"ansible \[core ([\d\.]+)\]"}
+        "molecule": {
+            "cmd": ["molecule", "--version"],
+            "version_regex": r"molecule\s+([0-9]+(?:\.[0-9]+)+)"
+        },
+        "ansible": {
+            "cmd": ["ansible", "--version"],
+            "version_regex": r"ansible \[core ([\d\.]+)\]"
+        }
     }
     issues = []
 
@@ -115,7 +129,7 @@ def check_dependencies(ctx):
         try:
             process = subprocess.run(cmd_args, capture_output=True, text=True, check=False)
             if process.returncode == 0:
-                output = process.stdout.strip()
+                output = strip_ansi(process.stdout.strip())
                 match = re.search(dep_info["version_regex"], output)
                 if match and match.group(1):
                     version_str = match.group(1)
