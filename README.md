@@ -8,7 +8,7 @@ The primary goal of MolTest is to improve the efficiency and user experience of 
 
 *   **Batch Execution:** Run all discovered Molecule scenarios with a single command.
 *   **Targeted Testing:** Easily rerun only previously failed tests, saving significant time during development and CI.
-*   **Clear Reporting:** Generate human-readable (Markdown) and machine-readable (JSON) reports of test outcomes.
+*   **Clear Reporting:** Generate human-readable (Markdown) and machine-readable (JSON or JUnit XML) reports of test outcomes.
 *   **Simplified Workflow:** Provide a consistent interface for interacting with Molecule tests across different projects.
 *   **CI/CD Integration:** Offer features and output formats suitable for integration into automated testing pipelines.
 
@@ -18,7 +18,7 @@ The primary goal of MolTest is to improve the efficiency and user experience of 
 *   **Test Execution:** Runs selected or all discovered Molecule scenarios.
 *   **Results Caching:** Persists test results (pass/fail status, duration, return codes) in a local `.moltest_cache.json` file.
 *   **Rerun Failed:** Supports rerunning only the scenarios that failed in the previous execution.
-*   **Report Generation:** Creates detailed test reports in JSON and Markdown formats.
+*   **Report Generation:** Creates detailed test reports in JSON, Markdown, and JUnit XML formats.
 *   **Flexible CLI:** Offers commands to `run` tests, `clear-cache`, and `show-cache`.
 *   **Dependency Checks:** Verifies the presence and minimum versions of `molecule` and `ansible`.
 
@@ -96,6 +96,7 @@ moltest run [OPTIONS]
 *   `--rerun-failed`, `--lf`, `-f`: Only run scenarios that failed in the last execution (based on the cache).
 *   `--json-report [PATH]`, `-j`: Save a JSON report. Defaults to `moltest_report.json` if no path is provided.
 *   `--md-report [PATH]`, `-m`: Save a Markdown report. Defaults to `moltest_report.md` if no path is provided.
+*   `--junit-xml [PATH]`, `-x`: Save results in JUnit XML format. Defaults to `moltest_report.xml` if no path is provided.
 *   `--roles-path [PATH]`: Directory containing Ansible roles (used for `ANSIBLE_ROLES_PATH`, default: `roles`).
 *   `--no-color`: Disable colored output in the console. This is automatically enabled in CI environments or when stdout is not a TTY.
 *   `--verbose INTEGER`: Set verbosity level (0, 1, 2). Higher numbers provide more output.
@@ -121,7 +122,7 @@ moltest run [OPTIONS]
     ```
 *   Run all scenarios and save reports to custom paths:
     ```bash
-    moltest run --json-report custom_results.json --md-report custom_summary.md
+    moltest run --json-report custom_results.json --md-report custom_summary.md --junit-xml custom_results.xml
     ```
 
 ### Managing the Cache

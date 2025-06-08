@@ -5,6 +5,7 @@ import colorama
 from colorama import Fore, Back, Style
 import json
 from datetime import datetime, timezone
+import xml.etree.ElementTree as ET
 
 # Initialize colorama
 # autoreset=True ensures that color/style changes are reset after each print.
@@ -245,4 +246,60 @@ def generate_markdown_report(scenario_results: list, report_path: str, overall_d
             print(f"{COLOR_SUCCESS}Markdown report generated successfully at {report_path}")
     except IOError as e:
         print(f"{COLOR_FAILURE}Error writing Markdown report to {report_path}: {e}")
+
+
+def generate_junit_xml_report(
+    scenario_results: list,
+    report_path: str,
+    overall_duration: float | None = None,
+    verbose: int = 0,
+) -> None:
+    """Generate a JUnit-style XML report."""
+    num_total = len(scenario_results)
+    num_failed = 0
+    num_skipped = 0
+
+    testsuite_attrs = {
+        "name": "MolTest",
+        "tests": str(num_total),
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+    }
+    if overall_duration is not None:
+        testsuite_attrs["time"] = f"{overall_duration:.3f}"
+
+    root = ET.Element("testsuite", testsuite_attrs)
+
+    for result in scenario_results:
+        scenario_id = result.get("id", "unknown")
+        role_name, scenario_name = scenario_id.split(":", 1) if ":" in scenario_id else ("", scenario_id)
+        duration = result.get("duration")
+        status = result.get("status", "unknown").lower()
+
+        tc_attrs = {
+            "classname": role_name or "unknown",
+            "name": scenario_name,
+        }
+        if duration is not None:
+            tc_attrs["time"] = f"{duration:.3f}"
+        testcase = ET.SubElement(root, "testcase", tc_attrs)
+
+        if status in {"failed", "xpassed"}:
+            ET.SubElement(testcase, "failure")
+            num_failed += 1
+        elif status in {"skipped", "xfailed"}:
+            ET.SubElement(testcase, "skipped")
+            num_skipped += 1
+
+    root.set("failures", str(num_failed))
+    root.set("skipped", str(num_skipped))
+
+    tree = ET.ElementTree(root)
+    try:
+        tree.write(report_path, encoding="utf-8", xml_declaration=True)
+        if verbose > 0:
+            print(f"{COLOR_SUCCESS}JUnit XML report generated successfully at {report_path}")
+    except IOError as e:  # pragma: no cover - file write issues rare
+        print(f"{COLOR_FAILURE}Error writing JUnit XML report to {report_path}: {e}")
 
