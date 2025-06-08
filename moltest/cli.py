@@ -15,6 +15,11 @@ from .reporter import print_scenario_start, print_scenario_result, print_summary
 # This is where the .moltest_cache.json will be expected/created.
 _PROJECT_ROOT = Path.cwd()
 
+# Default paths used by the CLI
+DEFAULT_JSON_REPORT = "moltest_report.json"
+DEFAULT_MD_REPORT = "moltest_report.md"
+DEFAULT_ROLES_PATH = "roles"
+
 # Attempt to import packaging.version for robust version comparison
 try:
     from packaging.version import parse as parse_version, InvalidVersion
@@ -112,18 +117,27 @@ def validate_report_path(ctx, param, value, expected_extension):
 @cli.command()
 @click.pass_context # Add pass_context decorator
 @click.option('--rerun-failed', '-f', is_flag=True, help='Rerun only the failed tests.')
-@click.option('--json-report', '-j', 
+@click.option('--json-report', '-j',
               type=click.Path(dir_okay=False, writable=True, resolve_path=True),
+              flag_value=DEFAULT_JSON_REPORT,
+              default=None,
               callback=lambda ctx, param, value: validate_report_path(ctx, param, value, '.json'),
-              help='Output test results as a JSON file (e.g., report.json).')
-@click.option('--md-report', '-m', 
+              help=f'Output test results as a JSON file. Defaults to {DEFAULT_JSON_REPORT}.')
+@click.option('--md-report', '-m',
               type=click.Path(dir_okay=False, writable=True, resolve_path=True),
+              flag_value=DEFAULT_MD_REPORT,
+              default=None,
               callback=lambda ctx, param, value: validate_report_path(ctx, param, value, '.md'),
-              help='Output test results as a Markdown file (e.g., report.md).')
+              help=f'Output test results as a Markdown file. Defaults to {DEFAULT_MD_REPORT}.')
 @click.option('--no-color', is_flag=True, help='Disable colored output.')
 @click.option('--verbose', '-v', count=True, help='Enable verbose output. Use -vv or -vvv for more verbosity.')
 @click.option('--scenario', '-s', default='all', help='Specify scenario(s) to run: "all", a specific ID, or comma-separated IDs.')
-def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario): # Add ctx parameter
+@click.option('--roles-path', '-r',
+              type=click.Path(file_okay=False, resolve_path=True),
+              default=DEFAULT_ROLES_PATH,
+              show_default=True,
+              help='Directory containing Ansible roles. Used for ANSIBLE_ROLES_PATH.')
+def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, roles_path): # Add ctx parameter
     """Run Molecule tests."""
     check_dependencies(ctx) # Call dependency check early
     click.echo(f"Rerun failed: {rerun_failed}")
@@ -132,6 +146,11 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario):
     click.echo(f"No color: {no_color}")
     click.echo(f"  Verbose: {verbose}")
     click.echo(f"  Scenario(s) selected: {scenario}")
+    click.echo(f"  Roles path: {roles_path}")
+
+    roles_path_resolved = Path(roles_path)
+    if not roles_path_resolved.is_absolute():
+        roles_path_resolved = (_PROJECT_ROOT / roles_path_resolved).resolve()
 
     # _PROJECT_ROOT is defined at the top of the file by the cache import setup
     click.echo(f"\nProject root: {_PROJECT_ROOT}")
@@ -222,6 +241,8 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario):
                     # stderr=subprocess.STDOUT merges stderr into stdout so messages appear in order
                     # text=True decodes the output as text
                     # bufsize=1 enables line-buffering, so we get lines as they are ready
+                    env = os.environ.copy()
+                    env['ANSIBLE_ROLES_PATH'] = str(roles_path_resolved)
                     with subprocess.Popen(
                         command_parts,
                         stdout=subprocess.PIPE,
@@ -229,6 +250,7 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario):
                         text=True,
                         bufsize=1,
                         cwd=execution_path,
+                        env=env,
                     ) as proc:
                         if verbose > 0:
                             # If verbose, stream the output
