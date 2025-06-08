@@ -6,6 +6,8 @@ import os
 import sys
 import time
 from pathlib import Path
+from importlib import import_module
+from importlib.metadata import entry_points
 
 from . import __version__
 
@@ -35,6 +37,54 @@ _PROJECT_ROOT = Path.cwd()
 DEFAULT_JSON_REPORT = "moltest_report.json"
 DEFAULT_MD_REPORT = "moltest_report.md"
 DEFAULT_ROLES_PATH = "roles"
+
+# --- Plugin and Hook System -------------------------------------------------
+
+_loaded_plugins: list = []
+
+
+def load_plugins() -> list:
+    """Load plugin modules via entry points and configuration."""
+    plugins = []
+    config = load_config()
+    plugin_names = config.get("plugins", []) if isinstance(config, dict) else []
+
+    try:
+        for ep in entry_points(group="moltest.plugins"):
+            try:
+                plugins.append(ep.load())
+            except Exception as exc:  # pragma: no cover - rare import failure
+                click.echo(
+                    click.style(
+                        f"Failed to load entry point plugin {ep.name}: {exc}",
+                        fg="yellow",
+                    )
+                )
+    except Exception:  # pragma: no cover - no entry points found
+        pass
+
+    for name in plugin_names:
+        try:
+            plugins.append(import_module(name))
+        except Exception as exc:  # pragma: no cover - invalid plugin
+            click.echo(
+                click.style(f"Failed to load plugin {name}: {exc}", fg="yellow")
+            )
+
+    return plugins
+
+
+def call_hooks(hook: str, *args, **kwargs) -> None:
+    """Invoke a hook on all loaded plugins."""
+    for mod in _loaded_plugins:
+        func = getattr(mod, hook, None)
+        if callable(func):
+            try:
+                func(*args, **kwargs)
+            except Exception as exc:  # pragma: no cover - plugin error
+                click.echo(
+                    click.style(f"Plugin hook {hook} failed: {exc}", fg="yellow")
+                )
 
 # Attempt to import packaging.version for robust version comparison
 try:
@@ -199,6 +249,10 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
 
     color_enabled = not no_color
 
+    global _loaded_plugins
+    _loaded_plugins = load_plugins()
+    call_hooks("before_run", ctx)
+
     config = load_config()
     if roles_path is None:
         roles_path = config.get('roles_path')
@@ -303,6 +357,7 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
                 save_cache(cache_data, str(_PROJECT_ROOT)) # Save cache to update last_run timestamp
             except (IOError, OSError) as e:
                 click.echo(click.style(f"Warning: Could not save cache file after determining no tests to run: {e}", fg="yellow"), err=True)
+            call_hooks("after_run", [])
             ctx.exit(0) # Exit code 0 as no tests were meant to run.
 
         click.echo("\nPreparing to execute Molecule tests for targeted scenarios:")
@@ -336,10 +391,12 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
                             }
                         )
                         update_scenario_status(cache_data, full_id, 'skipped')
+                        call_hooks("after_scenario", full_id, 'skipped')
                         continue
 
                     is_xfail = bool(tags & xfail_tags_set)
                     molecule_command = f"molecule test -s {scenario_name}"
+                    call_hooks("before_scenario", full_id)
                     print_scenario_start(full_id, verbose=verbose, color_enabled=color_enabled)
                     scenario_status = "unknown"
                     duration = None
@@ -423,6 +480,7 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
                         )
 
                         update_scenario_status(cache_data, full_id, scenario_status)
+                        call_hooks("after_scenario", full_id, scenario_status)
         finally:
             click.echo("\nSaving test results to cache...")
             try:
@@ -476,7 +534,8 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
             final_exit_code = 0 # Or consider it an error? For now, 0 if no results from execution phase.
         elif any(r.get('status', '').lower() == 'failed' or r.get('return_code', 0) != 0 for r in scenario_results_list):
             final_exit_code = 1
-        
+
+        call_hooks("after_run", scenario_results_list)
         ctx.exit(final_exit_code)
 
     except Exception as e:
