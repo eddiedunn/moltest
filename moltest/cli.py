@@ -5,6 +5,7 @@ import re
 import os
 import sys
 import time
+import logging
 from pathlib import Path
 from importlib import import_module
 from importlib.metadata import entry_points
@@ -42,6 +43,9 @@ from .reporter import (
 # _PROJECT_ROOT is the current working directory from which moltest is invoked.
 # This is where the .moltest_cache.json will be expected/created.
 _PROJECT_ROOT = Path.cwd()
+
+# Module level logger
+logger = logging.getLogger("moltest")
 
 # Default paths used by the CLI
 DEFAULT_JSON_REPORT = "moltest_report.json"
@@ -223,7 +227,7 @@ def compile_id_expression(expression: str):
     return matcher
 
 
-def _run_scenario(record, verbose, roles_path_resolved):
+def _run_scenario(record, verbose, roles_path_resolved, capture, log_level):
     """Execute a single Molecule scenario and capture its output."""
     full_id = record['id']
     scenario_name = record['scenario_name']
@@ -257,7 +261,15 @@ def _run_scenario(record, verbose, roles_path_resolved):
         ) as proc:
             if verbose > 0:
                 for line in proc.stdout:
-                    output_lines.append(f"      {line.strip()}")
+                    formatted = f"      {line.strip()}"
+                    if capture == 'no':
+                        click.echo(formatted)
+                        logger.log(log_level, formatted)
+                    elif capture == 'tee':
+                        click.echo(formatted)
+                        output_lines.append(formatted)
+                    else:
+                        output_lines.append(formatted)
             else:
                 proc.wait()
         end_time = time.monotonic()
@@ -278,9 +290,15 @@ def _run_scenario(record, verbose, roles_path_resolved):
     except Exception as e:  # pragma: no cover - unexpected errors
         scenario_status = "failed"
         if verbose > 0:
-            output_lines.append(
-                click.style(f"    ERROR during {full_id}: {e}", fg='red')
-            )
+            err_line = f"    ERROR during {full_id}: {e}"
+            if capture == 'no':
+                click.echo(click.style(err_line, fg='red'))
+                logger.error(err_line)
+            elif capture == 'tee':
+                click.echo(click.style(err_line, fg='red'))
+                output_lines.append(click.style(err_line, fg='red'))
+            else:
+                output_lines.append(click.style(err_line, fg='red'))
 
     return {
         'id': full_id,
@@ -321,7 +339,7 @@ def _run_scenario(record, verbose, roles_path_resolved):
               help=f'Output test results as a JUnit XML file. Defaults to {DEFAULT_JUNIT_REPORT}.')
 @click.option('--no-color', is_flag=True, help='Disable colored output.')
 @click.option('--verbose', '-v', count=True, help='Enable verbose output. Use -vv or -vvv for more verbosity.')
-@click.option('--scenario', '-s', default='all', help='Specify scenario(s) to run: "all", a specific ID, or comma-separated IDs.')
+@click.option('--scenario', default='all', help='Specify scenario(s) to run: "all", a specific ID, or comma-separated IDs.')
 @click.option('-k', 'id_expr', default=None, help='Filter scenarios by ID expression (e.g., "foo and not bar")')
 @click.option('--skip', 'skip_tags', multiple=True, help='Skip scenarios matching the given tag. Can be used multiple times.')
 @click.option('--xfail', 'xfail_tags', multiple=True, help='Expect failure for scenarios with the given tag. Can be used multiple times.')
@@ -356,9 +374,30 @@ def _run_scenario(record, verbose, roles_path_resolved):
     default=None,
     help='Directory containing Ansible roles. Used for ANSIBLE_ROLES_PATH.',
 )
+@click.option(
+    '--capture',
+    type=click.Choice(['fd', 'tee', 'no'], case_sensitive=False),
+    default='fd',
+    show_default=True,
+    help='Capture mode for Molecule output.'
+)
+@click.option('-s', 'disable_capture', is_flag=True, help='Shortcut for --capture=no')
+@click.option(
+    '--log-level',
+    default='INFO',
+    show_default=True,
+    help='Logging level.'
+)
+@click.option(
+    '--log-file',
+    type=click.Path(dir_okay=False, writable=True),
+    default=None,
+    help='Write logs to the specified file.'
+)
 def run(ctx, rerun_failed, json_report, md_report, junit_xml, no_color, verbose, scenario,
         id_expr, skip_tags, xfail_tags, parallel, fail_fast, maxfail,
-        collect_only, fixtures, roles_path):  # Add ctx parameter
+        collect_only, fixtures, roles_path, capture, disable_capture,
+        log_level, log_file):  # Add ctx parameter
     """Run Molecule tests."""
     check_dependencies(ctx)  # Call dependency check early
 
@@ -366,6 +405,21 @@ def run(ctx, rerun_failed, json_report, md_report, junit_xml, no_color, verbose,
         no_color = True
 
     color_enabled = not no_color
+
+    if disable_capture:
+        capture = 'no'
+
+    level_value = getattr(logging, log_level.upper(), logging.INFO)
+    logger.setLevel(level_value)
+    logger.handlers.clear()
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(logging.Formatter('%(message)s'))
+    logger.addHandler(stream_handler)
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(logging.Formatter('%(message)s'))
+        logger.addHandler(file_handler)
+    logger.propagate = False
 
     global _loaded_plugins
     _loaded_plugins = load_plugins()
@@ -579,16 +633,23 @@ def run(ctx, rerun_failed, json_report, md_report, junit_xml, no_color, verbose,
                         break
                     call_hooks("before_scenario", record['id'])
                     print_scenario_start(record['id'], verbose=verbose, color_enabled=color_enabled)
-                    fut = executor.submit(_run_scenario, record, verbose, roles_path_resolved)
+                    fut = executor.submit(
+                        _run_scenario,
+                        record,
+                        verbose,
+                        roles_path_resolved,
+                        capture,
+                        level_value,
+                    )
                     futures[fut] = record
 
                 while futures:
                     for fut in as_completed(list(futures)):
                         record = futures.pop(fut)
                         result_data = fut.result()
-                        if verbose > 0:
+                        if verbose > 0 and result_data['output_lines']:
                             for line in result_data['output_lines']:
-                                click.echo(line)
+                                logger.log(level_value, line)
                         if result_data.get('error_message'):
                             click.echo(click.style(result_data['error_message'], fg='red'))
                         if result_data['return_code'] == 0:
@@ -642,7 +703,14 @@ def run(ctx, rerun_failed, json_report, md_report, junit_xml, no_color, verbose,
                         if next_record is not None:
                             call_hooks("before_scenario", next_record['id'])
                             print_scenario_start(next_record['id'], verbose=verbose, color_enabled=color_enabled)
-                            new_fut = executor.submit(_run_scenario, next_record, verbose, roles_path_resolved)
+                            new_fut = executor.submit(
+                                _run_scenario,
+                                next_record,
+                                verbose,
+                                roles_path_resolved,
+                                capture,
+                                level_value,
+                            )
                             futures[new_fut] = next_record
                     if early_stop:
                         break

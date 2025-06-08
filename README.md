@@ -99,6 +99,9 @@ moltest run [OPTIONS]
 *   `--md-report [PATH]`, `-m`: Save a Markdown report. Defaults to `moltest_report.md` if no path is provided.
 *   `--junit-xml [PATH]`, `-x`: Save results in JUnit XML format. Defaults to `moltest_report.xml` if no path is provided.
 *   `--roles-path [PATH]`: Directory containing Ansible roles (used for `ANSIBLE_ROLES_PATH`, default: `roles`).
+*   `--capture [MODE]`: Output capture mode (`fd`, `tee`, or `no`). `-s` is shorthand for `--capture no`.
+*   `--log-level TEXT`: Python logging level (e.g., `INFO`, `DEBUG`).
+*   `--log-file PATH`: Optional file to write logs to.
 *   `--no-color`: Disable colored output in the console. This is automatically enabled in CI environments or when stdout is not a TTY.
 *   `--verbose INTEGER`: Set verbosity level (0, 1, 2). Higher numbers provide more output.
 *   `--fail-fast`: Stop execution after the first failure.
@@ -136,6 +139,14 @@ moltest run [OPTIONS]
 *   Run all scenarios and save reports to custom paths:
     ```bash
     moltest run --json-report custom_results.json --md-report custom_summary.md --junit-xml custom_results.xml
+    ```
+*   Disable output capturing:
+    ```bash
+    moltest run -v -s
+    ```
+*   Log debug output to a file:
+    ```bash
+    moltest run --log-level debug --log-file moltest.log
     ```
 
 ### Managing the Cache
