@@ -92,6 +92,7 @@ moltest run [OPTIONS]
 **Options for `run`:**
 
 *   `--scenario TEXT`: Specify a particular scenario name to run (e.g., `default`). If not provided, all discovered scenarios are run.
+*   `-k EXPRESSION`: Filter scenarios by ID using a boolean expression (similar to pytest). Words are matched as substrings.
 *   `--rerun-failed`, `--lf`, `-f`: Only run scenarios that failed in the last execution (based on the cache).
 *   `--json-report [PATH]`, `-j`: Save a JSON report. Defaults to `moltest_report.json` if no path is provided.
 *   `--md-report [PATH]`, `-m`: Save a Markdown report. Defaults to `moltest_report.md` if no path is provided.
@@ -113,6 +114,10 @@ moltest run [OPTIONS]
 *   Rerun only scenarios that failed previously:
     ```bash
     moltest run --rerun-failed
+    ```
+*   Filter scenarios with an expression:
+    ```bash
+    moltest run -k "web and not slow"
     ```
 *   Run all scenarios and save reports to custom paths:
     ```bash

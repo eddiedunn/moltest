@@ -416,3 +416,22 @@ def test_run_parameter_sets(runner, mock_dependencies_params, mock_popen):
     assert 'role1:alpha[set1]' in starts
     assert 'role1:alpha[set2]' in starts
 
+
+def test_k_expression_filters_scenarios(runner, mock_dependencies_multi, mock_popen):
+    """-k expression should filter scenarios by ID."""
+    result = runner.invoke(cli, ['run', '-k', 'role1'])
+    assert result.exit_code == 0
+
+    # Only the matching scenario should run
+    cwds = [entry['cwd'] for entry in mock_popen.call_history]
+    assert cwds == [Path('/fake/path/role1')]
+
+
+def test_k_expression_no_match(runner, mock_dependencies_multi, mock_popen):
+    """No scenarios should run if -k expression matches none."""
+    result = runner.invoke(cli, ['run', '-k', 'nonexistent'])
+    assert result.exit_code == 0
+    assert mock_popen.call_history == []
+    echo_msgs = [c.args[0] for c in mock_dependencies_multi.call_args_list]
+    assert any('No Molecule tests will be run' in m for m in echo_msgs)
+
