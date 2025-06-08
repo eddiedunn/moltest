@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 from pathlib import Path
-import yaml
 
 # Common virtual environment directory names to exclude
 VENV_NAMES = {'.venv', 'venv', 'env'}
@@ -50,12 +49,7 @@ def parse_scenario(molecule_yml_path: Path):
 
     # Placeholder for actual molecule.yml parsing if needed for more details in future
     # try:
-    #     with open(molecule_yml_path, 'r') as f:
-    #         config = yaml.safe_load(f)
-    #     # Extract more details from config if necessary
-    # except Exception as e:
-    #     print(f"Error parsing {molecule_yml_path}: {e}")
-    #     config = {}
+    # Placeholder for reading molecule.yml if needed in the future
 
     return {
         'scenario_name': scenario_name,

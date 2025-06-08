@@ -76,6 +76,10 @@ def mock_dependencies(mocker):
     mocker.patch('moltest.cli.print_scenario_start')
     mocker.patch('moltest.cli.print_scenario_result')
     mocker.patch('moltest.cli.print_summary_table')
+    # Avoid Click's Exit exception being caught by the CLI
+    mocker.patch('click.core.Context.exit', side_effect=lambda self, code=0: (_ for _ in ()).throw(SystemExit(code)))
+    # Skip dependency checks
+    mocker.patch('moltest.cli.check_dependencies')
     # Patch click.echo to capture its output for assertions
     mocked_echo = mocker.patch('moltest.cli.click.echo')
     return mocked_echo
