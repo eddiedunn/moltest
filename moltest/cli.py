@@ -184,22 +184,24 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
         if roles_path != config.get('roles_path'):
             save_config({'roles_path': roles_path})
 
-    click.echo(f"Rerun failed: {rerun_failed}")
-    click.echo(f"JSON report: {json_report}")
-    click.echo(f"Markdown report: {md_report}")
-    click.echo(f"No color: {no_color}")
-    click.echo(f"  Verbose: {verbose}")
-    click.echo(f"  Scenario(s) selected: {scenario}")
-    click.echo(f"  Roles path: {roles_path}")
+    if verbose > 0:
+        click.echo(f"Rerun failed: {rerun_failed}")
+        click.echo(f"JSON report: {json_report}")
+        click.echo(f"Markdown report: {md_report}")
+        click.echo(f"No color: {no_color}")
+        click.echo(f"  Verbose: {verbose}")
+        click.echo(f"  Scenario(s) selected: {scenario}")
+        click.echo(f"  Roles path: {roles_path}")
 
     roles_path_resolved = Path(roles_path)
     if not roles_path_resolved.is_absolute():
         roles_path_resolved = (_PROJECT_ROOT / roles_path_resolved).resolve()
-    click.echo(f"  Using roles path: {roles_path_resolved}")
+    if verbose > 0:
+        click.echo(f"  Using roles path: {roles_path_resolved}")
 
-    # _PROJECT_ROOT is defined at the top of the file by the cache import setup
-    click.echo(f"\nProject root: {_PROJECT_ROOT}")
-    click.echo(f"Discovering scenarios from: {_PROJECT_ROOT}")
+        # _PROJECT_ROOT is defined at the top of the file by the cache import setup
+        click.echo(f"\nProject root: {_PROJECT_ROOT}")
+        click.echo(f"Discovering scenarios from: {_PROJECT_ROOT}")
 
     try:
         cache_data = load_cache(str(_PROJECT_ROOT))

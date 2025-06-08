@@ -242,14 +242,14 @@ def test_run_failing_scenario_exit_code(runner, mock_dependencies_multi, mock_po
 
 def test_lf_alias_invokes_rerun_failed(runner, mock_dependencies, mock_popen):
     """--lf should behave as an alias for --rerun-failed."""
-    result = runner.invoke(cli, ['run', '--lf'])
+    result = runner.invoke(cli, ['run', '--lf', '-v'])
     assert result.exit_code == 0
     mock_dependencies.assert_any_call('Rerun failed: True')
 
 
 def test_f_alias_invokes_rerun_failed(runner, mock_dependencies, mock_popen):
     """-f short option should also trigger rerun-failed."""
-    result = runner.invoke(cli, ['run', '-f'])
+    result = runner.invoke(cli, ['run', '-f', '-v'])
     assert result.exit_code == 0
     mock_dependencies.assert_any_call('Rerun failed: True')
 
@@ -258,14 +258,14 @@ def test_no_color_auto_enabled_in_ci(runner, mock_dependencies, mock_popen, monk
     """CI environment should force no-color output."""
     monkeypatch.setenv('CI', 'true')
     monkeypatch.setattr('sys.stdout.isatty', lambda: True)
-    result = runner.invoke(cli, ['run'])
+    result = runner.invoke(cli, ['run', '-v'])
     assert result.exit_code == 0
     mock_dependencies.assert_any_call('No color: True')
 
 
 def test_no_color_flag(runner, mock_dependencies, mock_popen):
     """Explicit --no-color option disables colored output."""
-    result = runner.invoke(cli, ['run', '--no-color'])
+    result = runner.invoke(cli, ['run', '--no-color', '-v'])
     assert result.exit_code == 0
     mock_dependencies.assert_any_call('No color: True')
 
