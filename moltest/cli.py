@@ -206,7 +206,7 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario):
             for s_data in scenarios_to_run:
                 scenario_id = s_data['id']
                 scenario_name = s_data['scenario_name']
-                execution_path = Path(s_data['execution_path']) # This will be used in Popen's cwd
+                execution_path = Path(s_data['execution_path'])  # Currently unused
                 
                 molecule_command = f"molecule test -s {scenario_name}"
                 print_scenario_start(scenario_id, verbose=verbose)
@@ -220,20 +220,16 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario):
                         click.echo(f"    Running command: {molecule_command}")
                     command_parts = molecule_command.split()
                     start_time = time.monotonic()
+
                     # Use Popen to start the process without waiting
                     # stdout=subprocess.PIPE tells Popen to capture the output for us to read
                     # text=True decodes the output as text
                     # bufsize=1 enables line-buffering, so we get lines as they are ready
-                    with subprocess.Popen(command_parts, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, cwd=execution_path) as proc:
-                        if verbose > 0:
-                            # If verbose, stream the output
-                            for line in proc.stdout:
-                                click.echo(f"      {line.strip()}") # Use a slightly different prefix
-                        else:
-                            # If not verbose, we still need to consume the output,
-                            # otherwise the process buffer can fill up and hang.
-                            # proc.wait() handles this efficiently without printing.
-                            proc.wait()
+                    with subprocess.Popen(command_parts, stdout=subprocess.PIPE, text=True, bufsize=1) as proc:
+                        # Loop through the output line by line, in real-time
+                        for line in proc.stdout:
+                            # For now, just print every line to the screen
+                            click.echo(f"    | {line.strip()}")
 
                     # After the `with` block, the process is guaranteed to be finished.
                     # We can now get the final return code.
