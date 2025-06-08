@@ -253,6 +253,32 @@ def mock_dependencies_tagged(mocker):
     return mocked_echo
 
 
+@pytest.fixture
+def mock_dependencies_params(mocker):
+    """Mocks a scenario with parameter sets."""
+    mocker.patch('moltest.cli.discover_scenarios', return_value=[
+        {
+            'id': 'role1:alpha',
+            'scenario_name': 'alpha',
+            'execution_path': '/fake/path/role1',
+            'parameters': [
+                {'id': 'set1', 'vars': {'FOO': 'A'}},
+                {'id': 'set2', 'vars': {'FOO': 'B'}},
+            ],
+        }
+    ])
+    mocker.patch('moltest.cli.load_cache', return_value={'moltest_version': '0.1.0', 'last_run': '', 'scenarios': {}})
+    mocker.patch('moltest.cli.save_cache')
+    start = mocker.patch('moltest.cli.print_scenario_start')
+    result = mocker.patch('moltest.cli.print_scenario_result')
+    mocker.patch('moltest.cli.print_summary_table')
+    mocker.patch('click.core.Context.exit', side_effect=lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
+    mocker.patch('moltest.cli.check_dependencies')
+    mocker.patch('moltest.cli.click.prompt', return_value='roles')
+    echo = mocker.patch('moltest.cli.click.echo')
+    return {'echo': echo, 'start': start, 'result': result}
+
+
 def test_run_exits_when_no_scenarios(runner, mock_dependencies_no_scenarios):
     """CLI exits with code 2 when no scenarios are discovered."""
     result = runner.invoke(cli, ['run'])
@@ -376,3 +402,17 @@ def test_run_skips_tagged_scenarios(runner, mock_dependencies_tagged, mock_popen
     assert mock_popen.call_history == []
     echo_msgs = [c.args[0] for c in mock_dependencies_tagged.call_args_list]
     assert any('Skipping role1:alpha' in msg for msg in echo_msgs)
+
+
+def test_run_parameter_sets(runner, mock_dependencies_params, mock_popen):
+    """Each parameter set should trigger a separate Molecule run."""
+    result = runner.invoke(cli, ['run'])
+    assert result.exit_code == 0
+
+    # Two parameter sets -> two executions
+    assert len(mock_popen.call_history) == 2
+
+    starts = [call.args[0] for call in mock_dependencies_params['start'].call_args_list]
+    assert 'role1:alpha[set1]' in starts
+    assert 'role1:alpha[set2]' in starts
+

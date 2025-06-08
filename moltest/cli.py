@@ -274,112 +274,121 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
         click.echo("\nPreparing to execute Molecule tests for targeted scenarios:")
         try:
             for s_data in scenarios_to_run:
-                scenario_id = s_data['id']
+                scenario_id_base = s_data['id']
                 scenario_name = s_data['scenario_name']
                 execution_path = Path(s_data['execution_path'])  # Currently unused
-                
+                param_sets = s_data.get('parameters') or [{'id': 'default', 'vars': {}}]
                 tags = set(s_data.get('tags', []))
-                if tags & skip_tags_set:
-                    click.echo(f"Skipping {scenario_id} due to tag match: {', '.join(tags & skip_tags_set)}")
-                    print_scenario_result(
-                        scenario_id,
-                        "skipped",
-                        None,
-                        verbose=verbose,
-                        color_enabled=color_enabled,
-                    )
-                    scenario_results_list.append(
-                        {
-                            'id': scenario_id,
-                            'status': 'skipped',
-                            'duration': None,
-                            'return_code': 0,
-                        }
-                    )
-                    update_scenario_status(cache_data, scenario_id, 'skipped')
-                    continue
 
-                is_xfail = bool(tags & xfail_tags_set)
-                molecule_command = f"molecule test -s {scenario_name}"
-                print_scenario_start(scenario_id, verbose=verbose, color_enabled=color_enabled)
-                scenario_status = "unknown"
-                duration = None # Initialize duration
-                return_code = -1 # Default/error return code
-                try:
-                    if verbose > 0:
-                        click.echo(f"    Running command: {molecule_command}")
-                    command_parts = molecule_command.split()
-                    start_time = time.monotonic()
+                for idx, param in enumerate(param_sets):
+                    param_id = param.get('id', str(idx))
+                    full_id = scenario_id_base if (s_data.get('parameters') is None and param_id == 'default' and len(param_sets) == 1) else f"{scenario_id_base}[{param_id}]"
 
-                    # Use Popen to start the process without waiting
-                    # stdout=subprocess.PIPE tells Popen to capture the output for us to read
-                    # stderr=subprocess.STDOUT merges stderr into stdout so messages appear in order
-                    # text=True decodes the output as text
-                    # bufsize=1 enables line-buffering, so we get lines as they are ready
-                    env = os.environ.copy()
-                    env['ANSIBLE_ROLES_PATH'] = str(roles_path_resolved)
-                    with subprocess.Popen(
-                        command_parts,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1,
-                        cwd=execution_path,
-                        env=env,
-                    ) as proc:
+                    if tags & skip_tags_set:
+                        click.echo(f"Skipping {full_id} due to tag match: {', '.join(tags & skip_tags_set)}")
+                        print_scenario_result(
+                            full_id,
+                            "skipped",
+                            None,
+                            verbose=verbose,
+                            color_enabled=color_enabled,
+                        )
+                        scenario_results_list.append(
+                            {
+                                'id': full_id,
+                                'status': 'skipped',
+                                'duration': None,
+                                'return_code': 0,
+                            }
+                        )
+                        update_scenario_status(cache_data, full_id, 'skipped')
+                        continue
+
+                    is_xfail = bool(tags & xfail_tags_set)
+                    molecule_command = f"molecule test -s {scenario_name}"
+                    print_scenario_start(full_id, verbose=verbose, color_enabled=color_enabled)
+                    scenario_status = "unknown"
+                    duration = None
+                    return_code = -1
+                    try:
                         if verbose > 0:
-                            # If verbose, stream the output
-                            for line in proc.stdout:
-                                click.echo(f"      {line.strip()}")
-                        else:
-                            # If not verbose, still consume output to avoid hanging
-                            proc.wait()
+                            click.echo(f"    Running command: {molecule_command}")
+                        command_parts = molecule_command.split()
+                        start_time = time.monotonic()
 
-                    # After the `with` block, the process is guaranteed to be finished.
-                    # We can now get the final return code.
-                    end_time = time.monotonic()
-                    duration = end_time - start_time
-                    return_code = proc.returncode
-                    
-                    if return_code == 0:
-                        click.echo(click.style(f"    Scenario {scenario_id} completed successfully.", fg='green'))
-                        scenario_status = "passed"
-                    else:
-                        click.echo(click.style(f"    Scenario {scenario_id} failed with return code {return_code}.", fg='red'))
+                        # Use Popen to start the process without waiting
+                        # stdout=subprocess.PIPE tells Popen to capture the output for us to read
+                        # stderr=subprocess.STDOUT merges stderr into stdout so messages appear in order
+                        # text=True decodes the output as text
+                        # bufsize=1 enables line-buffering, so we get lines as they are ready
+                        env = os.environ.copy()
+                        env['ANSIBLE_ROLES_PATH'] = str(roles_path_resolved)
+                        for k, v in param.get('vars', {}).items():
+                            env[str(k)] = str(v)
+                        with subprocess.Popen(
+                            command_parts,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            text=True,
+                            bufsize=1,
+                            cwd=execution_path,
+                            env=env,
+                        ) as proc:
+                            if verbose > 0:
+                                # If verbose, stream the output
+                                for line in proc.stdout:
+                                    click.echo(f"      {line.strip()}")
+                            else:
+                                # If not verbose, still consume output to avoid hanging
+                                proc.wait()
+
+                        # After the `with` block, the process is guaranteed to be finished.
+                        # We can now get the final return code.
+                        end_time = time.monotonic()
+                        duration = end_time - start_time
+                        return_code = proc.returncode
+
+                        if return_code == 0:
+                            click.echo(click.style(f"    Scenario {full_id} completed successfully.", fg='green'))
+                            scenario_status = "passed"
+                        else:
+                            click.echo(click.style(f"    Scenario {full_id} failed with return code {return_code}.", fg='red'))
+                            scenario_status = "failed"
+
+                        if is_xfail:
+                            if scenario_status == "failed":
+                                scenario_status = "xfailed"
+                                return_code = 0
+                            else:
+                                scenario_status = "xpassed"
+
+                    except FileNotFoundError:
+                        click.echo(click.style(f"    Error: molecule command not found. Is Molecule installed and in PATH?", fg='red'))
                         scenario_status = "failed"
+                        # return_code remains -1 or its last value if FileNotFoundError occurs before subprocess.run
+                    except Exception as e:
+                        scenario_status = "failed"  # Ensure status is failed
+                        # return_code remains -1 or its last value if a general Exception occurs before result.returncode assignment
+                        if verbose > 0:
+                            click.echo(click.style(f"    ERROR during {full_id}: {e}", fg='red' if not no_color else None))
+                    finally:
+                        print_scenario_result(
+                            full_id,
+                            scenario_status,
+                            duration,
+                            verbose=verbose,
+                            color_enabled=color_enabled,
+                        )
+                        scenario_results_list.append(
+                            {
+                                'id': full_id,
+                                'status': scenario_status,
+                                'duration': duration,
+                                'return_code': return_code,
+                            }
+                        )
 
-                    if is_xfail:
-                        if scenario_status == "failed":
-                            scenario_status = "xfailed"
-                            return_code = 0
-                        else:
-                            scenario_status = "xpassed"
-
-                except FileNotFoundError:
-                    click.echo(click.style(f"    Error: molecule command not found. Is Molecule installed and in PATH?", fg='red'))
-                    scenario_status = "failed"
-                    # return_code remains -1 or its last value if FileNotFoundError occurs before subprocess.run
-                except Exception as e:
-                    scenario_status = "failed" # Ensure status is failed
-                    # return_code remains -1 or its last value if a general Exception occurs before result.returncode assignment
-                    if verbose > 0:
-                        click.echo(click.style(f"    ERROR during {scenario_id}: {e}", fg='red' if not no_color else None))
-                finally:
-                    print_scenario_result(
-                        scenario_id,
-                        scenario_status,
-                        duration,
-                        verbose=verbose,
-                        color_enabled=color_enabled,
-                    )
-                    scenario_results_list.append({
-                        'id': scenario_id, 
-                        'status': scenario_status, 
-                        'duration': duration,
-                        'return_code': return_code # Use the now reliably set return_code
-                    })
-                    
-                    update_scenario_status(cache_data, scenario_id, scenario_status)
+                        update_scenario_status(cache_data, full_id, scenario_status)
         finally:
             click.echo("\nSaving test results to cache...")
             try:

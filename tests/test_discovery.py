@@ -29,3 +29,19 @@ def test_discover_scenarios_excludes_venv(tmp_path):
     assert scenarios[0]["execution_path"] == str((tmp_path / "roles" / "role1").resolve())
     assert scenarios[1]["execution_path"] == str((tmp_path / "roles" / "role2").resolve())
     assert all(Path(s["molecule_file_path"]).exists() for s in scenarios)
+
+
+def test_discover_scenarios_reads_parameters(tmp_path):
+    """Parameter files for scenarios should be parsed."""
+    scenario_dir = tmp_path / "roles" / "role1" / "molecule" / "alpha"
+    scenario_dir.mkdir(parents=True)
+    (scenario_dir / "molecule.yml").write_text("{}")
+    params_file = scenario_dir / "moltest.params.yml"
+    params_file.write_text("- id: one\n  vars:\n    FOO: bar\n- id: two\n  vars:\n    BAZ: qux\n")
+
+    scenarios = discover_scenarios(tmp_path)
+    assert len(scenarios) == 1
+    assert scenarios[0]["parameters"] == [
+        {"id": "one", "vars": {"FOO": "bar"}},
+        {"id": "two", "vars": {"BAZ": "qux"}},
+    ]
