@@ -93,8 +93,8 @@ moltest run [OPTIONS]
 
 *   `--scenario TEXT`: Specify a particular scenario name to run (e.g., `default`). If not provided, all discovered scenarios are run.
 *   `--rerun-failed`, `--lf`, `-f`: Only run scenarios that failed in the last execution (based on the cache).
-*   `--json-report [PATH]`: Save a JSON report. Defaults to `moltest_report.json` if no path is provided.
-*   `--md-report [PATH]`: Save a Markdown report. Defaults to `moltest_report.md` if no path is provided.
+*   `--json-report [PATH]`, `-j`: Save a JSON report. Defaults to `moltest_report.json` if no path is provided.
+*   `--md-report [PATH]`, `-m`: Save a Markdown report. Defaults to `moltest_report.md` if no path is provided.
 *   `--roles-path [PATH]`: Directory containing Ansible roles (used for `ANSIBLE_ROLES_PATH`, default: `roles`).
 *   `--no-color`: Disable colored output in the console. This is automatically enabled in CI environments or when stdout is not a TTY.
 *   `--verbose INTEGER`: Set verbosity level (0, 1, 2). Higher numbers provide more output.

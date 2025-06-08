@@ -78,6 +78,9 @@ def mock_dependencies(mocker):
     # Skip dependency checks
     mocker.patch('moltest.cli.check_dependencies')
     mocker.patch('moltest.cli.click.prompt', return_value='roles')
+    # Prevent actual report generation during tests
+    mocker.patch('moltest.cli.generate_json_report')
+    mocker.patch('moltest.cli.generate_markdown_report')
     # Patch click.echo to capture its output for assertions
     mocked_echo = mocker.patch('moltest.cli.click.echo')
     return mocked_echo
@@ -244,11 +247,25 @@ def test_lf_alias_invokes_rerun_failed(runner, mock_dependencies, mock_popen):
     mock_dependencies.assert_any_call('Rerun failed: True')
 
 
+def test_f_alias_invokes_rerun_failed(runner, mock_dependencies, mock_popen):
+    """-f short option should also trigger rerun-failed."""
+    result = runner.invoke(cli, ['run', '-f'])
+    assert result.exit_code == 0
+    mock_dependencies.assert_any_call('Rerun failed: True')
+
+
 def test_no_color_auto_enabled_in_ci(runner, mock_dependencies, mock_popen, monkeypatch):
     """CI environment should force no-color output."""
     monkeypatch.setenv('CI', 'true')
     monkeypatch.setattr('sys.stdout.isatty', lambda: True)
     result = runner.invoke(cli, ['run'])
+    assert result.exit_code == 0
+    mock_dependencies.assert_any_call('No color: True')
+
+
+def test_no_color_flag(runner, mock_dependencies, mock_popen):
+    """Explicit --no-color option disables colored output."""
+    result = runner.invoke(cli, ['run', '--no-color'])
     assert result.exit_code == 0
     mock_dependencies.assert_any_call('No color: True')
 
@@ -275,3 +292,20 @@ def test_validate_report_path(tmp_path):
     result_bad = runner_local.invoke(dummy, ['--path', str(bad)])
     assert result_bad.exit_code == 2
     assert "'.json'" in result_bad.output
+
+
+def test_default_report_paths(tmp_path, runner, mocker, monkeypatch, mock_popen, mock_dependencies):
+    """Using -j or -m without a path should use default filenames."""
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        monkeypatch.setattr('moltest.cli._PROJECT_ROOT', Path.cwd())
+        mock_json = mocker.patch('moltest.cli.generate_json_report')
+        mock_md = mocker.patch('moltest.cli.generate_markdown_report')
+
+        result = runner.invoke(cli, ['run', '-j', '-m'])
+        assert result.exit_code == 0
+
+        expected_json = str(Path('moltest_report.json').resolve())
+        expected_md = str(Path('moltest_report.md').resolve())
+
+        assert mock_json.call_args[0][1] == expected_json
+        assert mock_md.call_args[0][1] == expected_md

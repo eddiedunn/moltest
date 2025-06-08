@@ -53,7 +53,11 @@ def test_generate_reports_empty(tmp_path):
 
 
 def test_no_color_output(capsys):
-    from moltest.reporter import print_scenario_result, print_summary_table
+    from moltest.reporter import (
+        print_scenario_result,
+        print_summary_table,
+        print_scenario_start,
+    )
 
     print_scenario_result("role1:alpha", "passed", duration=1.0, color_enabled=False)
     out1 = capsys.readouterr().out
@@ -66,4 +70,9 @@ def test_no_color_output(capsys):
     out2 = capsys.readouterr().out
     assert "\x1b[" not in out2
     assert "role1:alpha" in out2
+
+    print_scenario_start("role1:alpha", color_enabled=False)
+    out3 = capsys.readouterr().out
+    assert "\x1b[" not in out3
+    assert "RUNNING: role1:alpha" in out3
 
