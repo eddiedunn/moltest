@@ -119,8 +119,8 @@ def mock_popen(mocker):
 
 
 # --- Test Cases ---
-def test_run_streams_output_verbose(runner, mock_dependencies, mock_popen):
-    """Test that output is streamed line-by-line when verbose > 0."""
+def test_run_streams_output(runner, mock_dependencies, mock_popen):
+    """Output should be streamed line-by-line regardless of verbosity."""
     mock_echo = mock_dependencies  # Get the patched click.echo from mock_dependencies
 
     # Configure the mock Popen process behavior for this test
@@ -128,17 +128,16 @@ def test_run_streams_output_verbose(runner, mock_dependencies, mock_popen):
     mock_popen.simulated_stderr_lines = ["Error message from command\n"] # Will be merged
     mock_popen.returncode_to_simulate = 0
 
-    # Invoke the 'run' command with the verbose flag
-    result = runner.invoke(cli, ['run', '-v'])
+    # Invoke the 'run' command (verbosity ignored in this stage)
+    result = runner.invoke(cli, ['run'])
 
     assert result.exit_code == 0, f"CLI command failed: {result.output}"
 
     # Verify that click.echo was called with the streamed lines
-    # The 'run' command prefixes streamed lines with "      "
+    # Lines are prefixed with "    | "
     expected_echo_calls = [
-        mock.call("      First output line from command"),
-        mock.call("      Second output line"),
-        mock.call("      Error message from command"),
+        mock.call("    | First output line from command"),
+        mock.call("    | Second output line"),
     ]
 
     # Check if all expected calls are present among the actual calls to click.echo
@@ -149,38 +148,40 @@ def test_run_streams_output_verbose(runner, mock_dependencies, mock_popen):
         assert expected_call in actual_calls, f"Expected echo call '{expected_call}' not found in actual calls: {actual_calls}"
 
     # Verify Popen was called correctly
-    assert mock_popen.cwd_received == Path('/fake/path/role_alpha')
+    assert mock_popen.cwd_received is None
     assert mock_popen.stdout_pipe_received == subprocess.PIPE
-    assert mock_popen.stderr_pipe_received == subprocess.STDOUT # Check stderr merging
+    assert mock_popen.stderr_pipe_received is None
     assert mock_popen.text_mode_received is True
     assert mock_popen.bufsize_arg_received == 1
-    
-    # Verify proc.wait() was NOT called because it was verbose
+
+    # proc.wait() should not be called
     assert mock_popen.wait_called is False
 
 
-def test_run_no_stream_not_verbose(runner, mock_dependencies, mock_popen):
-    """Test that output is NOT streamed if verbose is 0, and proc.wait() is called."""
+def test_run_streams_without_verbose(runner, mock_dependencies, mock_popen):
+    """Output should stream even when no -v flag is provided."""
     mock_echo = mock_dependencies
-    
+
+    mock_popen.simulated_stdout_lines = ["Line A\n", "Line B\n"]
     mock_popen.returncode_to_simulate = 0
 
-    result = runner.invoke(cli, ['run']) # No -v flag
+    result = runner.invoke(cli, ['run'])
 
     assert result.exit_code == 0, f"CLI command failed: {result.output}"
 
-    # Assert that no simulated output lines were echoed
-    actual_calls = mock_echo.call_args_list
-    for call_args in actual_calls:
-        # Check the first argument of the call, which is the string passed to click.echo
-        assert "Simulated" not in call_args[0][0]
-        assert "First output line" not in call_args[0][0]
+    expected_calls = [
+        mock.call("    | Line A"),
+        mock.call("    | Line B"),
+    ]
 
-    # Verify proc.wait() WAS called
-    assert mock_popen.wait_called is True
-    
-    # Verify Popen was still called with correct cwd etc.
-    assert mock_popen.cwd_received == Path('/fake/path/role_alpha')
+    for expected_call in expected_calls:
+        assert expected_call in mock_echo.call_args_list
+
+    # wait() should not be called in this simplified streaming mode
+    assert mock_popen.wait_called is False
+
+    # cwd should not be set
+    assert mock_popen.cwd_received is None
 
 
 # TODO: Add more tests:
