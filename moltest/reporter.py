@@ -24,13 +24,21 @@ STYLE_BOLD = Style.BRIGHT
 STYLE_DIM = Style.DIM
 STYLE_NORMAL = Style.NORMAL
 
-def print_scenario_start(scenario_id: str, verbose: int = 0):
-    """Prints a message indicating the start of a scenario."""
-    # Basic implementation for now, verbose not used yet
-    print(f"{COLOR_INFO}RUNNING: {scenario_id} ...")
+def print_scenario_start(scenario_id: str, verbose: int = 0, *, color_enabled: bool = True):
+    """Print a message indicating the start of a scenario."""
+    color = COLOR_INFO if color_enabled else ""
+    reset = Style.RESET_ALL if color_enabled else ""
+    print(f"{color}RUNNING: {scenario_id} ...{reset}")
 
-def print_scenario_result(scenario_id: str, status: str, duration: float = None, verbose: int = 0):
-    """Prints the result of a scenario execution with color coding."""
+def print_scenario_result(
+    scenario_id: str,
+    status: str,
+    duration: float | None = None,
+    verbose: int = 0,
+    *,
+    color_enabled: bool = True,
+) -> None:
+    """Print the result of a scenario execution with optional color."""
     status_upper = status.upper()
     
     if status_upper == "PASSED":
@@ -41,18 +49,28 @@ def print_scenario_result(scenario_id: str, status: str, duration: float = None,
         status_text = "FAILED"
     else:
         color = COLOR_WARNING
-        status_text = status_upper # Or some other default
+        status_text = status_upper
         
     duration_str = f" ({duration:.2f}s)" if duration is not None else ""
-    
-    # Basic implementation for now, verbose not used yet
-    print(f"{color}{STYLE_BOLD}{status_text}:{STYLE_NORMAL} {scenario_id}{duration_str}")
+
+    color_prefix = color + STYLE_BOLD if color_enabled else ""
+    color_reset = Style.RESET_ALL if color_enabled else ""
+    style_normal = STYLE_NORMAL if color_enabled else ""
+    print(f"{color_prefix}{status_text}:{style_normal} {scenario_id}{duration_str}{color_reset}")
 
 
-def print_summary_table(scenario_results: list, overall_duration: float = None, verbose: int = 0):
-    """Prints a summary table of all scenario results."""
+def print_summary_table(
+    scenario_results: list,
+    overall_duration: float | None = None,
+    verbose: int = 0,
+    *,
+    color_enabled: bool = True,
+) -> None:
+    """Print a summary table of all scenario results."""
     if not scenario_results:
-        print(f"{COLOR_WARNING}No scenario results to summarize.")
+        prefix = COLOR_WARNING if color_enabled else ""
+        reset = Style.RESET_ALL if color_enabled else ""
+        print(f"{prefix}No scenario results to summarize.{reset}")
         return
 
     num_total = len(scenario_results)
@@ -67,10 +85,14 @@ def print_summary_table(scenario_results: list, overall_duration: float = None, 
     status_col_len = len("  Status  ") # Length of "  PASSED  " or "  FAILED  "
     duration_col_len = len("(000.00s)") # Max duration string length
 
-    print(f"\n{COLOR_HEADER}{STYLE_BOLD}{'=' * 20} Test Execution Summary {'=' * 20}{STYLE_NORMAL}")
+    header_prefix = COLOR_HEADER + STYLE_BOLD if color_enabled else ""
+    reset = Style.RESET_ALL if color_enabled else ""
+    print(f"\n{header_prefix}{'=' * 20} Test Execution Summary {'=' * 20}{reset}")
     
     # Header row
-    header = f"{STYLE_BOLD}{'Scenario ID':<{max_id_len}}  {'Status':^{status_col_len}}  {'Duration':>{duration_col_len}}{STYLE_NORMAL}"
+    style_bold = STYLE_BOLD if color_enabled else ""
+    style_normal = STYLE_NORMAL if color_enabled else ""
+    header = f"{style_bold}{'Scenario ID':<{max_id_len}}  {'Status':^{status_col_len}}  {'Duration':>{duration_col_len}}{style_normal}"
     print(header)
     print(f"{'-' * (max_id_len + status_col_len + duration_col_len + 4)}") # Separator line
 
@@ -91,21 +113,27 @@ def print_summary_table(scenario_results: list, overall_duration: float = None, 
         
         duration_display = f"({s_duration:.2f}s)" if s_duration is not None else ""
         
-        print(f"{s_id:<{max_id_len}}  {color}{STYLE_BOLD}{status_display:^{status_col_len}}{STYLE_NORMAL}  {duration_display:>{duration_col_len}}")
+        prefix = color + STYLE_BOLD if color_enabled else ""
+        print(
+            f"{s_id:<{max_id_len}}  {prefix}{status_display:^{status_col_len}}{style_normal if color_enabled else ''}  {duration_display:>{duration_col_len}}{reset if color_enabled else ''}"
+        )
 
-    print(f"{'-' * (max_id_len + status_col_len + duration_col_len + 4)}") # Separator line
+    print(f"{'-' * (max_id_len + status_col_len + duration_col_len + 4)}")  # Separator line
 
     # Summary counts
-    summary_line = f"{STYLE_BOLD}Total Scenarios: {num_total}{STYLE_NORMAL} | " \
-                   f"{COLOR_SUCCESS}{STYLE_BOLD}Passed: {num_passed}{STYLE_NORMAL} | " \
-                   f"{COLOR_FAILURE}{STYLE_BOLD}Failed: {num_failed}{STYLE_NORMAL}"
+    summary_line = (
+        f"{style_bold}Total Scenarios: {num_total}{style_normal} | "
+        f"{(COLOR_SUCCESS + STYLE_BOLD) if color_enabled else ''}Passed: {num_passed}{style_normal} | "
+        f"{(COLOR_FAILURE + STYLE_BOLD) if color_enabled else ''}Failed: {num_failed}{style_normal}"
+    )
     if num_other > 0:
-        summary_line += f" | {COLOR_WARNING}{STYLE_BOLD}Other: {num_other}{STYLE_NORMAL}"
+        summary_line += f" | {(COLOR_WARNING + STYLE_BOLD) if color_enabled else ''}Other: {num_other}{style_normal}"
     print(summary_line)
 
     if overall_duration is not None:
-        print(f"{STYLE_BOLD}Total Execution Time: {overall_duration:.2f}s{STYLE_NORMAL}")
-    print(f"{COLOR_HEADER}{STYLE_BOLD}{'=' * (len(header) + 0)}{STYLE_NORMAL}") # Match header length
+        print(f"{style_bold}Total Execution Time: {overall_duration:.2f}s{style_normal}")
+    footer_prefix = COLOR_HEADER + STYLE_BOLD if color_enabled else ""
+    print(f"{footer_prefix}{'=' * (len(header) + 0)}{reset}")  # Match header length
 
 
 def generate_json_report(scenario_results: list, report_path: str, overall_duration: float = None, verbose: int = 0):

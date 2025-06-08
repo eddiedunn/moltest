@@ -77,6 +77,7 @@ def mock_dependencies(mocker):
     mocker.patch('click.core.Context.exit', side_effect=lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
     # Skip dependency checks
     mocker.patch('moltest.cli.check_dependencies')
+    mocker.patch('moltest.cli.click.prompt', return_value='roles')
     # Patch click.echo to capture its output for assertions
     mocked_echo = mocker.patch('moltest.cli.click.echo')
     return mocked_echo
@@ -200,6 +201,7 @@ def mock_dependencies_no_scenarios(mocker):
     mocker.patch('moltest.cli.print_summary_table')
     mocker.patch('click.core.Context.exit', side_effect=lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
     mocker.patch('moltest.cli.check_dependencies')
+    mocker.patch('moltest.cli.click.prompt', return_value='roles')
     mocked_echo = mocker.patch('moltest.cli.click.echo')
     return mocked_echo
 
@@ -217,6 +219,7 @@ def mock_dependencies_multi(mocker):
     mocker.patch('moltest.cli.print_summary_table')
     mocker.patch('click.core.Context.exit', side_effect=lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
     mocker.patch('moltest.cli.check_dependencies')
+    mocker.patch('moltest.cli.click.prompt', return_value='roles')
     mocked_echo = mocker.patch('moltest.cli.click.echo')
     return mocked_echo
 
