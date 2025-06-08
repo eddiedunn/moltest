@@ -237,6 +237,22 @@ def test_run_failing_scenario_exit_code(runner, mock_dependencies_multi, mock_po
     assert result.exit_code == 1
 
 
+def test_lf_alias_invokes_rerun_failed(runner, mock_dependencies, mock_popen):
+    """--lf should behave as an alias for --rerun-failed."""
+    result = runner.invoke(cli, ['run', '--lf'])
+    assert result.exit_code == 0
+    mock_dependencies.assert_any_call('Rerun failed: True')
+
+
+def test_no_color_auto_enabled_in_ci(runner, mock_dependencies, mock_popen, monkeypatch):
+    """CI environment should force no-color output."""
+    monkeypatch.setenv('CI', 'true')
+    monkeypatch.setattr('sys.stdout.isatty', lambda: True)
+    result = runner.invoke(cli, ['run'])
+    assert result.exit_code == 0
+    mock_dependencies.assert_any_call('No color: True')
+
+
 import click
 
 from moltest.cli import validate_report_path
