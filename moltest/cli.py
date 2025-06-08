@@ -155,6 +155,8 @@ def validate_report_path(ctx, param, value, expected_extension):
 @click.option('--no-color', is_flag=True, help='Disable colored output.')
 @click.option('--verbose', '-v', count=True, help='Enable verbose output. Use -vv or -vvv for more verbosity.')
 @click.option('--scenario', '-s', default='all', help='Specify scenario(s) to run: "all", a specific ID, or comma-separated IDs.')
+@click.option('--skip', 'skip_tags', multiple=True, help='Skip scenarios matching the given tag. Can be used multiple times.')
+@click.option('--xfail', 'xfail_tags', multiple=True, help='Expect failure for scenarios with the given tag. Can be used multiple times.')
 @click.option(
     '--roles-path',
     '-r',
@@ -162,7 +164,7 @@ def validate_report_path(ctx, param, value, expected_extension):
     default=None,
     help='Directory containing Ansible roles. Used for ANSIBLE_ROLES_PATH.',
 )
-def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, roles_path): # Add ctx parameter
+def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, skip_tags, xfail_tags, roles_path): # Add ctx parameter
     """Run Molecule tests."""
     check_dependencies(ctx)  # Call dependency check early
 
@@ -191,11 +193,15 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
         click.echo(f"No color: {no_color}")
         click.echo(f"  Verbose: {verbose}")
         click.echo(f"  Scenario(s) selected: {scenario}")
+        click.echo(f"  Skip tags: {', '.join(skip_tags) if skip_tags else 'None'}")
+        click.echo(f"  XFail tags: {', '.join(xfail_tags) if xfail_tags else 'None'}")
         click.echo(f"  Roles path: {roles_path}")
 
     roles_path_resolved = Path(roles_path)
     if not roles_path_resolved.is_absolute():
         roles_path_resolved = (_PROJECT_ROOT / roles_path_resolved).resolve()
+    skip_tags_set = set(skip_tags)
+    xfail_tags_set = set(xfail_tags)
     if verbose > 0:
         click.echo(f"  Using roles path: {roles_path_resolved}")
 
@@ -272,6 +278,28 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
                 scenario_name = s_data['scenario_name']
                 execution_path = Path(s_data['execution_path'])  # Currently unused
                 
+                tags = set(s_data.get('tags', []))
+                if tags & skip_tags_set:
+                    click.echo(f"Skipping {scenario_id} due to tag match: {', '.join(tags & skip_tags_set)}")
+                    print_scenario_result(
+                        scenario_id,
+                        "skipped",
+                        None,
+                        verbose=verbose,
+                        color_enabled=color_enabled,
+                    )
+                    scenario_results_list.append(
+                        {
+                            'id': scenario_id,
+                            'status': 'skipped',
+                            'duration': None,
+                            'return_code': 0,
+                        }
+                    )
+                    update_scenario_status(cache_data, scenario_id, 'skipped')
+                    continue
+
+                is_xfail = bool(tags & xfail_tags_set)
                 molecule_command = f"molecule test -s {scenario_name}"
                 print_scenario_start(scenario_id, verbose=verbose, color_enabled=color_enabled)
                 scenario_status = "unknown"
@@ -319,6 +347,13 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
                     else:
                         click.echo(click.style(f"    Scenario {scenario_id} failed with return code {return_code}.", fg='red'))
                         scenario_status = "failed"
+
+                    if is_xfail:
+                        if scenario_status == "failed":
+                            scenario_status = "xfailed"
+                            return_code = 0
+                        else:
+                            scenario_status = "xpassed"
 
                 except FileNotFoundError:
                     click.echo(click.style(f"    Error: molecule command not found. Is Molecule installed and in PATH?", fg='red'))

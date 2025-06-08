@@ -51,11 +51,22 @@ def parse_scenario(molecule_yml_path: Path):
     # try:
     # Placeholder for reading molecule.yml if needed in the future
 
+    tags_file = molecule_yml_path.parent / 'moltest.tags'
+    tags: list[str] = []
+    if tags_file.is_file():
+        content = tags_file.read_text().strip()
+        if content:
+            for line in content.splitlines():
+                for tag in line.replace(',', ' ').split():
+                    if tag:
+                        tags.append(tag)
+
     return {
         'scenario_name': scenario_name,
         'role_name': role_name,
         'execution_path': str(execution_path.resolve()),
-        'molecule_file_path': str(molecule_yml_path.resolve())
+        'molecule_file_path': str(molecule_yml_path.resolve()),
+        'tags': tags,
     }
 
 def generate_scenario_id(scenario_data: dict):

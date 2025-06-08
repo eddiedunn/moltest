@@ -235,6 +235,24 @@ def mock_dependencies_multi(mocker):
     return mocked_echo
 
 
+@pytest.fixture
+def mock_dependencies_tagged(mocker):
+    """Mocks a single scenario with a 'slow' tag."""
+    mocker.patch('moltest.cli.discover_scenarios', return_value=[
+        {'id': 'role1:alpha', 'scenario_name': 'alpha', 'execution_path': '/fake/path/role1', 'tags': ['slow']},
+    ])
+    mocker.patch('moltest.cli.load_cache', return_value={'moltest_version': '0.1.0', 'last_run': '', 'scenarios': {}})
+    mocker.patch('moltest.cli.save_cache')
+    mocker.patch('moltest.cli.print_scenario_start')
+    mocker.patch('moltest.cli.print_scenario_result')
+    mocker.patch('moltest.cli.print_summary_table')
+    mocker.patch('click.core.Context.exit', side_effect=lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
+    mocker.patch('moltest.cli.check_dependencies')
+    mocker.patch('moltest.cli.click.prompt', return_value='roles')
+    mocked_echo = mocker.patch('moltest.cli.click.echo')
+    return mocked_echo
+
+
 def test_run_exits_when_no_scenarios(runner, mock_dependencies_no_scenarios):
     """CLI exits with code 2 when no scenarios are discovered."""
     result = runner.invoke(cli, ['run'])
@@ -348,3 +366,13 @@ def test_run_handles_popen_exception(runner, mock_dependencies, monkeypatch):
     assert result.exit_code == 1
     error_msgs = [c.args[0] for c in mock_dependencies.call_args_list if 'Error:' in c.args[0]]
     assert any('molecule command not found' in msg for msg in error_msgs)
+
+
+def test_run_skips_tagged_scenarios(runner, mock_dependencies_tagged, mock_popen):
+    """Scenarios with skip tags should not be executed."""
+    result = runner.invoke(cli, ['run', '--skip', 'slow'])
+    assert result.exit_code == 0
+    # No commands should be executed
+    assert mock_popen.call_history == []
+    echo_msgs = [c.args[0] for c in mock_dependencies_tagged.call_args_list]
+    assert any('Skipping role1:alpha' in msg for msg in echo_msgs)
