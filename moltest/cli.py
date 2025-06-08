@@ -200,8 +200,6 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario):
             ctx.exit(0) # Exit code 0 as no tests were meant to run.
 
         click.echo("\nPreparing to execute Molecule tests for targeted scenarios:")
-        original_cwd = Path.cwd()
-        # original_cwd is defined above the loop
         try:
             for s_data in scenarios_to_run:
                 scenario_id = s_data['id']
@@ -210,12 +208,10 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario):
                 
                 molecule_command = f"molecule test -s {scenario_name}"
                 print_scenario_start(scenario_id, verbose=verbose)
-                # original_cwd = os.getcwd() # Removed
                 scenario_status = "unknown"
                 duration = None # Initialize duration
                 return_code = -1 # Default/error return code
                 try:
-                    # os.chdir(execution_path) # Removed
                     if verbose > 0:
                         click.echo(f"    Running command: {molecule_command}")
                     command_parts = molecule_command.split()
@@ -232,6 +228,7 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario):
                         stderr=subprocess.STDOUT,
                         text=True,
                         bufsize=1,
+                        cwd=execution_path,
                     ) as proc:
                         if verbose > 0:
                             # If verbose, stream the output
@@ -273,9 +270,6 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario):
                     })
                     
                     update_scenario_status(cache_data, scenario_id, scenario_status)
-                    os.chdir(original_cwd)
-                    if verbose > 0: # Make CWD restore message verbose
-                        click.echo(f"    Restored CWD to: {original_cwd}")
         finally:
             click.echo("\nSaving test results to cache...")
             try:
