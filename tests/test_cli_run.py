@@ -528,3 +528,24 @@ def test_maxfail_limits_failures(runner, mock_dependencies_three, mock_popen):
     echo_msgs = [c.args[0] for c in mock_dependencies_three.call_args_list]
     assert any('Early termination triggered' in m for m in echo_msgs)
 
+
+def test_collect_only_lists_ids(runner, mock_dependencies_params, mock_popen):
+    """--collect-only should list scenario IDs without executing."""
+    result = runner.invoke(cli, ['run', '--collect-only'])
+    assert result.exit_code == 0
+    assert mock_popen.call_history == []
+    msgs = [c.args[0] for c in mock_dependencies_params['echo'].call_args_list]
+    assert any('role1:alpha[set1]' in m for m in msgs)
+    assert any('role1:alpha[set2]' in m for m in msgs)
+
+
+def test_fixtures_lists_parameter_sets(runner, mock_dependencies_params, mock_popen):
+    """--fixtures should display parameter set names and exit."""
+    result = runner.invoke(cli, ['run', '--fixtures'])
+    assert result.exit_code == 0
+    assert mock_popen.call_history == []
+    msgs = [c.args[0] for c in mock_dependencies_params['echo'].call_args_list]
+    assert any('role1:alpha:' in m for m in msgs)
+    assert any('- set1' in m for m in msgs)
+    assert any('- set2' in m for m in msgs)
+
