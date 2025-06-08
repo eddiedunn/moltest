@@ -128,7 +128,32 @@ def validate_report_path(ctx, param, value, expected_extension):
             param=param
         )
         
-    return str(report_path) # Return as string, Click Path type will handle further checks
+    return str(report_path)  # Return as string, Click Path type will handle further checks
+
+
+def compile_id_expression(expression: str):
+    """Compile an ID matching expression similar to pytest's ``-k`` option."""
+
+    if not expression:
+        return lambda _id: True
+
+    token_re = re.compile(r"\(|\)|\band\b|\bor\b|\bnot\b|[^()\s]+")
+    tokens = token_re.findall(expression)
+    parts: list[str] = []
+    for tok in tokens:
+        if tok in {"and", "or", "not", "(", ")"}:
+            parts.append(tok)
+        else:
+            parts.append(f"({tok!r} in scenario_id)")
+    python_expr = " ".join(parts)
+
+    def matcher(scenario_id: str) -> bool:
+        try:
+            return bool(eval(python_expr, {"__builtins__": {}}, {"scenario_id": scenario_id}))
+        except Exception:
+            return False
+
+    return matcher
 
 @cli.command()
 @click.pass_context # Add pass_context decorator
@@ -155,6 +180,7 @@ def validate_report_path(ctx, param, value, expected_extension):
 @click.option('--no-color', is_flag=True, help='Disable colored output.')
 @click.option('--verbose', '-v', count=True, help='Enable verbose output. Use -vv or -vvv for more verbosity.')
 @click.option('--scenario', '-s', default='all', help='Specify scenario(s) to run: "all", a specific ID, or comma-separated IDs.')
+@click.option('-k', 'id_expr', default=None, help='Filter scenarios by ID expression (e.g., "foo and not bar")')
 @click.option('--skip', 'skip_tags', multiple=True, help='Skip scenarios matching the given tag. Can be used multiple times.')
 @click.option('--xfail', 'xfail_tags', multiple=True, help='Expect failure for scenarios with the given tag. Can be used multiple times.')
 @click.option(
@@ -164,7 +190,7 @@ def validate_report_path(ctx, param, value, expected_extension):
     default=None,
     help='Directory containing Ansible roles. Used for ANSIBLE_ROLES_PATH.',
 )
-def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, skip_tags, xfail_tags, roles_path): # Add ctx parameter
+def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, id_expr, skip_tags, xfail_tags, roles_path):  # Add ctx parameter
     """Run Molecule tests."""
     check_dependencies(ctx)  # Call dependency check early
 
@@ -242,6 +268,14 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
                 ctx.exit(2)
             else:
                 click.echo("\nTargeting specific scenarios based on input:")
+                for ts in target_scenarios:
+                    click.echo(f"  - {ts['id']}")
+
+        if id_expr:
+            matcher = compile_id_expression(id_expr)
+            target_scenarios = [s for s in target_scenarios if matcher(s['id'])]
+            if verbose > 0:
+                click.echo(f"\nApplying -k expression: {id_expr}")
                 for ts in target_scenarios:
                     click.echo(f"  - {ts['id']}")
 
