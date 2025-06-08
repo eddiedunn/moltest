@@ -284,6 +284,27 @@ def mock_dependencies_params(mocker):
     return {'echo': echo, 'start': start, 'result': result}
 
 
+@pytest.fixture
+def mock_dependencies_three(mocker):
+    """Mocks three scenarios for maxfail testing."""
+    mocker.patch('moltest.cli.discover_scenarios', return_value=[
+        {'id': 'role1:alpha', 'scenario_name': 'alpha', 'execution_path': '/fake/path/role1'},
+        {'id': 'role2:beta', 'scenario_name': 'beta', 'execution_path': '/fake/path/role2'},
+        {'id': 'role3:gamma', 'scenario_name': 'gamma', 'execution_path': '/fake/path/role3'},
+    ])
+    mocker.patch('moltest.cli.load_cache', return_value={'moltest_version': '0.1.0', 'last_run': '', 'scenarios': {}})
+    mocker.patch('moltest.cli.save_cache')
+    mocker.patch('moltest.cli.print_scenario_start')
+    mocker.patch('moltest.cli.print_scenario_result')
+    mocker.patch('moltest.cli.print_summary_table')
+    mocker.patch('click.core.Context.exit', side_effect=lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
+    mocker.patch('moltest.cli.check_dependencies')
+    mocker.patch('moltest.cli.click.prompt', return_value='roles')
+    mocker.patch('moltest.cli.generate_junit_xml_report')
+    mocked_echo = mocker.patch('moltest.cli.click.echo')
+    return mocked_echo
+
+
 def test_run_exits_when_no_scenarios(runner, mock_dependencies_no_scenarios):
     """CLI exits with code 2 when no scenarios are discovered."""
     result = runner.invoke(cli, ['run'])
@@ -486,4 +507,24 @@ def test_parallel_option_uses_executor(runner, mock_dependencies_multi, mock_pop
 
     assert executors[0].max_workers == 2
     assert len(executors[0].submitted) == 2
+
+
+def test_fail_fast_stops_after_first_failure(runner, mock_dependencies_multi, mock_popen):
+    """--fail-fast should stop execution after the first failing scenario."""
+    mock_popen.returncode_to_simulate = 1
+    result = runner.invoke(cli, ['run', '--fail-fast'])
+    assert result.exit_code == 1
+    assert len(mock_popen.call_history) == 1
+    echo_msgs = [c.args[0] for c in mock_dependencies_multi.call_args_list]
+    assert any('Early termination triggered' in m for m in echo_msgs)
+
+
+def test_maxfail_limits_failures(runner, mock_dependencies_three, mock_popen):
+    """--maxfail should stop after the specified number of failures."""
+    mock_popen.returncode_to_simulate = 1
+    result = runner.invoke(cli, ['run', '--maxfail', '2'])
+    assert result.exit_code == 1
+    assert len(mock_popen.call_history) == 2
+    echo_msgs = [c.args[0] for c in mock_dependencies_three.call_args_list]
+    assert any('Early termination triggered' in m for m in echo_msgs)
 
