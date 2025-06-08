@@ -130,7 +130,14 @@ def validate_report_path(ctx, param, value, expected_extension):
 
 @cli.command()
 @click.pass_context # Add pass_context decorator
-@click.option('--rerun-failed', '-f', is_flag=True, help='Rerun only the failed tests.')
+@click.option(
+    '--rerun-failed',
+    '--lf',
+    '-f',
+    'rerun_failed',
+    is_flag=True,
+    help='Rerun only the failed tests.'
+)
 @click.option('--json-report', '-j',
               type=click.Path(dir_okay=False, writable=True, resolve_path=True),
               flag_value=DEFAULT_JSON_REPORT,
@@ -157,8 +164,10 @@ def run(ctx, rerun_failed, json_report, md_report, no_color, verbose, scenario, 
     """Run Molecule tests."""
     check_dependencies(ctx)  # Call dependency check early
 
-    color_env = os.getenv('CI', '').lower() != 'true' and sys.stdout.isatty()
-    color_enabled = not no_color and color_env
+    if os.getenv('CI', '').lower() == 'true' or not sys.stdout.isatty():
+        no_color = True
+
+    color_enabled = not no_color
 
     config = load_config()
     if roles_path is None:
