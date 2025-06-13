@@ -3,6 +3,7 @@ requires = ["hatchling", "setuptools_scm"]
 build-backend = "hatchling.build"
 
 [project]
+dynamic = ["version"]
 name = "moltest"
 description = "A CLI tool for running Molecule tests."
 readme = "README.md"
