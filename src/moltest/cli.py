@@ -263,28 +263,12 @@ def _run_scenario(record, verbose, roles_path_resolved, capture, log_level):
             env=env,
         ) as proc:
             if capture == 'no':
-                if capture == 'no':
-                    # Always stream output when capture is disabled
-                    for line in proc.stdout:
-                        formatted = f"      {line.strip()}"
-                        click.echo(formatted)
-                        logger.log(log_level, formatted)
-                    proc.wait()
-                elif capture == 'tee':
-                    for line in proc.stdout:
-                        formatted_line = f"      {line.strip()}"
-                        click.echo(formatted_line)
-                        output_lines.append(formatted_line)
-                    proc.wait()
-                else: # Default capture ('fd', 'all') or other non-'no'/non-'tee' modes
-                    if verbose > 0:
-                        for line in proc.stdout:
-                            formatted_line = f"      {line.strip()}"
-                            output_lines.append(formatted_line)
-                    else:
-                        for line in proc.stdout:
-                            click.echo(line, nl=False)
-                    proc.wait()
+                # Always stream output when capture is disabled
+                for line in proc.stdout:
+                    formatted = f"      {line.strip()}"
+                    click.echo(formatted)
+                    logger.log(log_level, formatted)
+                proc.wait()
             elif capture == 'tee':
                 for line in proc.stdout:
                     formatted_line = f"      {line.strip()}"
@@ -298,6 +282,9 @@ def _run_scenario(record, verbose, roles_path_resolved, capture, log_level):
                         output_lines.append(formatted_line)
                     proc.wait()
                 else:
+                    for line in proc.stdout:
+                        click.echo(line, nl=False)
+                    proc.wait()
                     stdout_data, _ = proc.communicate()
                     if stdout_data:
                         output_lines.extend(stdout_data.strip().splitlines())
