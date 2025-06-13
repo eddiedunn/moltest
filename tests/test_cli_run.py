@@ -49,6 +49,13 @@ class MockPopenProcess:
             pass
         return self.returncode_to_simulate
 
+    def communicate(self, input=None):
+        """Simulate communicate(): waits for the process and returns the full output as a tuple (stdout+stderr, None)."""
+        self.wait()
+        # In the app, stderr is redirected to stdout, so combine both
+        full_output = "".join(self.simulated_stdout_lines + self.simulated_stderr_lines)
+        return (full_output, None)
+
     @property
     def returncode(self):
         # In a real process, returncode is available after the process finishes.
@@ -166,8 +173,8 @@ def test_run_streams_output_verbose(runner, mock_dependencies, mock_popen):
     assert mock_popen.text_mode_received is True
     assert mock_popen.bufsize_arg_received == 1
 
-    # proc.wait() should not be called
-    assert mock_popen.wait_called is False
+    # proc.wait() *should* be called in streaming mode to get the return code.
+    assert mock_popen.wait_called is True
 
 
 def test_run_streams_output_no_verbose(runner, mock_dependencies, mock_popen):
@@ -182,7 +189,8 @@ def test_run_streams_output_no_verbose(runner, mock_dependencies, mock_popen):
     assert result.exit_code == 0
 
     assert mock.call("      Stream line 1") in mock_echo.call_args_list
-    assert mock_popen.wait_called is False
+    # proc.wait() *should* be called in streaming mode to get the return code.
+    assert mock_popen.wait_called is True
 
 
 def test_run_consumes_output_without_verbose(runner, mock_dependencies, mock_popen):
@@ -196,14 +204,13 @@ def test_run_consumes_output_without_verbose(runner, mock_dependencies, mock_pop
 
     assert result.exit_code == 0, f"CLI command failed: {result.output}"
 
-    # Ensure the output lines were not echoed
-    unwanted_calls = [
+    # Ensure the output lines were echoed exactly once each
+    expected_calls = [
         mock.call("      Line A"),
         mock.call("      Line B"),
     ]
-
-    for unwanted_call in unwanted_calls:
-        assert unwanted_call not in mock_echo.call_args_list
+    for expected_call in expected_calls:
+        assert mock_echo.call_args_list.count(expected_call) == 1, f"Expected {expected_call} to be echoed once."
 
     # wait() should be called to consume output
     assert mock_popen.wait_called is True
@@ -226,6 +233,77 @@ def test_capture_suppresses_output_by_default(runner, mock_dependencies, mock_po
 
     assert mock.call("      Cap line") not in mock_dependencies.call_args_list
     logger_mock.log.assert_any_call(logging.INFO, "      Cap line")
+
+
+def test_no_duplicate_output_lines(runner, mock_dependencies, mock_popen, mocker):
+    """Regression: moltest should not duplicate output lines beyond what the subprocess emits."""
+    mock_echo = mock_dependencies
+    # Simulate subprocess output with unique lines
+    mock_popen.simulated_stdout_lines = [
+        "line 1\n",
+        "line 2\n",
+        "line 3\n"
+    ]
+    mock_popen.returncode_to_simulate = 0
+
+    import os
+    # Test with --capture=no (streaming)
+    result = runner.invoke(cli, ['run', '-s'])
+    print("First CLI run output:", result.output)
+    assert result.exit_code == 0
+    echoed_lines = [c.args[0] for c in mock_echo.call_args_list if isinstance(c.args[0], str)]
+    for line in ["      line 1", "      line 2", "      line 3"]:
+        assert echoed_lines.count(line) == 1, f"'{line.strip()}' appeared {echoed_lines.count(line)} times"
+
+    # Remove .moltest_cache.json if it exists
+    cache_path = os.path.join(os.getcwd(), ".moltest_cache.json")
+    if os.path.exists(cache_path):
+        os.remove(cache_path)
+
+    mock_echo.reset_mock()
+    # Re-apply all mocks before the second CLI run
+    mocker.patch('moltest.cli.discover_scenarios', return_value=[
+        {'id': 'test-scenario-alpha', 'scenario_name': 'default', 'execution_path': '/fake/path/role_alpha'}
+    ])
+    mocker.patch('moltest.cli.load_cache', return_value={'moltest_version': '0.1.0', 'last_run': '', 'scenarios': {}})
+    mocker.patch('moltest.cli.save_cache')
+    mocker.patch('moltest.cli.print_scenario_start')
+    mocker.patch('moltest.cli.print_scenario_result')
+    mocker.patch('moltest.cli.print_summary_table')
+    mocker.patch('click.core.Context.exit', side_effect=lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
+    mocker.patch('moltest.cli.check_dependencies')
+    mocker.patch('moltest.cli.click.prompt', return_value='roles')
+    mocker.patch('moltest.cli.generate_json_report')
+    mocker.patch('moltest.cli.generate_markdown_report')
+    mocker.patch('moltest.cli.generate_junit_xml_report')
+    mock_echo = mocker.patch('moltest.cli.click.echo')
+    # Patch subprocess.Popen to return a new MockPopenProcess for the second run
+    def new_popen_side_effect(*args, **kwargs):
+        proc = MockPopenProcess(
+            args[0],
+            kwargs.get('stdout'),
+            kwargs.get('stderr'),
+            kwargs.get('text'),
+            kwargs.get('bufsize'),
+            kwargs.get('cwd')
+        )
+        proc.simulated_stdout_lines = [
+            "line 1\n",
+            "line 2\n",
+            "line 3\n"
+        ]
+        proc.simulated_stderr_lines = ["Simulated stderr line 1\n"]
+        proc.returncode_to_simulate = 0
+        return proc
+    mocker.patch('subprocess.Popen', side_effect=new_popen_side_effect)
+
+    # Test with default capture (buffered)
+    result = runner.invoke(cli, ['run'])
+    print("Second CLI run output:", result.output)
+    assert result.exit_code == 0, f"CLI output:\n{result.output}\nException: {result.exception}"
+    echoed_lines = [c.args[0] for c in mock_echo.call_args_list if isinstance(c.args[0], str)]
+    for line in ["      line 1", "      line 2", "      line 3"]:
+        assert echoed_lines.count(line) == 1, f"'{line.strip()}' appeared {echoed_lines.count(line)} times"
 
 
 def test_log_level_controls_verbosity(runner, mock_dependencies, mock_popen, mocker):

@@ -276,18 +276,11 @@ def _run_scenario(record, verbose, roles_path_resolved, capture, log_level):
                     output_lines.append(formatted_line)
                 proc.wait()
             else: # Default capture ('fd', 'all') or other non-'no'/non-'tee' modes
-                if verbose > 0:
-                    for line in proc.stdout:
-                        formatted_line = f"      {line.strip()}"
-                        output_lines.append(formatted_line)
-                    proc.wait()
-                else:
-                    for line in proc.stdout:
-                        click.echo(line, nl=False)
-                    proc.wait()
-                    stdout_data, _ = proc.communicate()
-                    if stdout_data:
-                        output_lines.extend(stdout_data.strip().splitlines())
+                # Buffered mode: only capture output, do not print here.
+                stdout_data, _ = proc.communicate()
+                if stdout_data:
+                    # Capture the raw output lines; formatting is handled in the main run loop.
+                    output_lines.extend(stdout_data.strip().splitlines())
         
         end_time = time.monotonic()
         duration = end_time - start_time
@@ -673,9 +666,15 @@ def run(ctx, rerun_failed, json_report, md_report, junit_xml, no_color, verbose,
                     for fut in as_completed(list(futures)):
                         record = futures.pop(fut)
                         result_data = fut.result()
-                        if verbose > 0 and result_data['output_lines']:
+                        # Only print/log output_lines if capture mode is not 'no' or 'tee'
+                        if capture not in ('no', 'tee') and result_data['output_lines']:
                             for line in result_data['output_lines']:
-                                logger.log(level_value, line)
+                                formatted_line = f"      {line}" if not line.startswith("      ") else line
+                                if verbose > 0:
+                                    logger.log(level_value, formatted_line)
+                                else:
+                                    click.echo(formatted_line)
+
                         if result_data.get('error_message'):
                             click.echo(click.style(result_data['error_message'], fg='red'))
                         if result_data['return_code'] == 0:
