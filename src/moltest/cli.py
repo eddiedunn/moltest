@@ -263,30 +263,28 @@ def _run_scenario(record, verbose, roles_path_resolved, capture, log_level):
             env=env,
         ) as proc:
             if capture == 'no':
-<<<<<<< HEAD
-                # Always stream output when capture is disabled
-                for line in proc.stdout:
-                    formatted = f"      {line.strip()}"
-                    click.echo(formatted)
-                    logger.log(log_level, formatted)
-            elif verbose > 0:
-                for line in proc.stdout:
-                    formatted = f"      {line.strip()}"
-                    if capture == 'tee':
+                if capture == 'no':
+                    # Always stream output when capture is disabled
+                    for line in proc.stdout:
+                        formatted = f"      {line.strip()}"
                         click.echo(formatted)
-                    output_lines.append(formatted)
-            else:
-=======
-                for line in proc.stdout:
-                    if verbose > 0:
+                        logger.log(log_level, formatted)
+                    proc.wait()
+                elif capture == 'tee':
+                    for line in proc.stdout:
                         formatted_line = f"      {line.strip()}"
                         click.echo(formatted_line)
-                        if logger.isEnabledFor(logging.getLevelName(log_level.upper())):
-                            logger.log(logging.getLevelName(log_level.upper()), formatted_line)
+                        output_lines.append(formatted_line)
+                    proc.wait()
+                else: # Default capture ('fd', 'all') or other non-'no'/non-'tee' modes
+                    if verbose > 0:
+                        for line in proc.stdout:
+                            formatted_line = f"      {line.strip()}"
+                            output_lines.append(formatted_line)
                     else:
-                        click.echo(line, nl=False)
->>>>>>> 03bbd9b (refactor: improve output handling and error management in molecule command execution)
-                proc.wait()
+                        for line in proc.stdout:
+                            click.echo(line, nl=False)
+                    proc.wait()
             elif capture == 'tee':
                 for line in proc.stdout:
                     formatted_line = f"      {line.strip()}"
