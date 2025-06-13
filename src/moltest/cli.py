@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import click
+from click.exceptions import Exit as ClickExit # Import for specific catch, though direct click.exceptions.Exit works too
 import subprocess
 import re
 import os
@@ -242,14 +243,16 @@ def _run_scenario(record, verbose, roles_path_resolved, capture, log_level):
     return_code = -1
     error_message = None
     try:
-        if verbose > 0:
+        if verbose > 0: # moltest's own verbosity
             output_lines.append(f"    Running command: {molecule_command}")
+
         command_parts = molecule_command.split()
         start_time = time.monotonic()
         env = os.environ.copy()
         env['ANSIBLE_ROLES_PATH'] = str(roles_path_resolved)
         for k, v in param_vars.items():
             env[str(k)] = str(v)
+
         with subprocess.Popen(
             command_parts,
             stdout=subprocess.PIPE,
@@ -260,6 +263,7 @@ def _run_scenario(record, verbose, roles_path_resolved, capture, log_level):
             env=env,
         ) as proc:
             if capture == 'no':
+<<<<<<< HEAD
                 # Always stream output when capture is disabled
                 for line in proc.stdout:
                     formatted = f"      {line.strip()}"
@@ -272,34 +276,70 @@ def _run_scenario(record, verbose, roles_path_resolved, capture, log_level):
                         click.echo(formatted)
                     output_lines.append(formatted)
             else:
+=======
+                for line in proc.stdout:
+                    if verbose > 0:
+                        formatted_line = f"      {line.strip()}"
+                        click.echo(formatted_line)
+                        if logger.isEnabledFor(logging.getLevelName(log_level.upper())):
+                            logger.log(logging.getLevelName(log_level.upper()), formatted_line)
+                    else:
+                        click.echo(line, nl=False)
+>>>>>>> 03bbd9b (refactor: improve output handling and error management in molecule command execution)
                 proc.wait()
+            elif capture == 'tee':
+                for line in proc.stdout:
+                    formatted_line = f"      {line.strip()}"
+                    click.echo(formatted_line)
+                    output_lines.append(formatted_line)
+                proc.wait()
+            else: # Default capture ('fd', 'all') or other non-'no'/non-'tee' modes
+                if verbose > 0:
+                    for line in proc.stdout:
+                        formatted_line = f"      {line.strip()}"
+                        output_lines.append(formatted_line)
+                    proc.wait()
+                else:
+                    stdout_data, _ = proc.communicate()
+                    if stdout_data:
+                        output_lines.extend(stdout_data.strip().splitlines())
+        
         end_time = time.monotonic()
         duration = end_time - start_time
         return_code = proc.returncode
+        
         scenario_status = "passed" if return_code == 0 else "failed"
+
         if is_xfail:
             if scenario_status == "failed":
                 scenario_status = "xfailed"
-                return_code = 0
-            else:
+            elif scenario_status == "passed":
                 scenario_status = "xpassed"
+
     except FileNotFoundError:
         error_message = (
             "    Error: molecule command not found. Is Molecule installed and in PATH?"
         )
         scenario_status = "failed"
-    except Exception as e:  # pragma: no cover - unexpected errors
+        if 'start_time' in locals():
+            duration = time.monotonic() - start_time
+        else:
+            duration = 0
+    except Exception as e:
         scenario_status = "failed"
+        error_message = f"    ERROR during {full_id}: {e}"
+        if 'start_time' in locals():
+            duration = time.monotonic() - start_time
+        else:
+            duration = 0
+        
         if verbose > 0:
-            err_line = f"    ERROR during {full_id}: {e}"
-            if capture == 'no':
-                click.echo(click.style(err_line, fg='red'))
-                logger.error(err_line)
-            elif capture == 'tee':
-                click.echo(click.style(err_line, fg='red'))
-                output_lines.append(click.style(err_line, fg='red'))
-            else:
-                output_lines.append(click.style(err_line, fg='red'))
+            err_line_styled = click.style(error_message, fg='red')
+            if capture == 'no' or capture == 'tee':
+                click.echo(err_line_styled)
+            output_lines.append(error_message) # Capture unstyled error for reports
+        else:
+            output_lines.append(error_message)
 
     return {
         'id': full_id,
@@ -791,6 +831,8 @@ def run(ctx, rerun_failed, json_report, md_report, junit_xml, no_color, verbose,
         call_hooks("after_run", scenario_results_list)
         ctx.exit(final_exit_code)
 
+    except click.exceptions.Exit:
+        raise # Re-raise to let Click handle its normal exit process
     except Exception as e:
         click.echo(click.style(f"An unexpected error occurred in the main run process: {e}", fg="red"), err=True)
         # Attempt to save cache even if an error occurs in the broader run logic
